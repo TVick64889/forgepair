@@ -179,6 +179,15 @@ REPAIRED
   off (a default for new forks) and would have silently prevented any
   of this automation from working at all.
 
+DEFERRED (tracked, not forgotten)
+- The known-issues dashboard's text-generation logic is written inline
+  inside the function that also calls GitHub's API, rather than as its
+  own separable piece. That made it harder to test on its own -- it
+  could only be verified by actually running it against the real repo
+  (which was done, and confirmed working), not by a fast, isolated
+  test. Worth cleaning up if this script is touched again, but not
+  worth doing as a standalone change right now.
+
 ---
 
 ## Template for future entries
