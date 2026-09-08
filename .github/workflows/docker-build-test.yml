@@ -29,24 +29,16 @@ name: Docker Build Test
 #   much faster as long as the Dockerfile/dependencies haven't changed.
 # - The two build targets (aider, aider-full) run as a matrix so they
 #   build concurrently instead of sequentially.
+#
+# No paths-ignore filter, deliberately: this check is required by
+# branch protection, and a required check a path filter can skip
+# permanently blocks matching PRs (confirmed directly, see CHANGES.md).
 
 on:
   push:
-    paths-ignore:
-      - 'aider/website/**'
-      - 'README.md'
-      - 'HISTORY.md'
-      - '.github/workflows/*'
-      - '!.github/workflows/docker-build-test.yml'
     branches:
       - main
   pull_request:
-    paths-ignore:
-      - 'aider/website/**'
-      - 'README.md'
-      - 'HISTORY.md'
-      - '.github/workflows/*'
-      - '!.github/workflows/docker-build-test.yml'
     branches:
       - main
 
