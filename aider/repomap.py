@@ -32,9 +32,13 @@ Tag = namedtuple("Tag", "rel_fname fname line name kind".split())
 SQLITE_ERRORS = (sqlite3.OperationalError, sqlite3.DatabaseError, OSError)
 
 
-CACHE_VERSION = 3
-if USING_TSL_PACK:
-    CACHE_VERSION = 4
+# tree-sitter-language-pack is a hard, unconditional dependency (pulled in via
+# grep-ast's own requirements), so USING_TSL_PACK is always True in any
+# environment built from requirements.txt. The legacy tree_sitter_languages
+# binding is not reachable through any supported install path. We still keep
+# CACHE_VERSION at 4 (the value used since TSL-pack became unconditional) so
+# existing caches aren't invalidated.
+CACHE_VERSION = 4
 
 UPDATING_REPO_MAP_MESSAGE = "Updating repo map"
 
@@ -302,17 +306,14 @@ class RepoMap:
         captures = self._run_captures(Query(language, query_scm), tree.root_node)
 
         captures_by_tag = defaultdict(list)
-        matches = []
         for tag, nodes in captures.items():
             for node in nodes:
                 captures_by_tag[tag].append(node)
             captures_by_tag[tag].append(node)
-            matches.append((node, tag))
 
-        if USING_TSL_PACK:
-            all_nodes = [(node, tag) for tag, nodes in captures_by_tag.items() for node in nodes]
-        else:
-            all_nodes = matches
+        # tree-sitter-language-pack always returns captures grouped by tag
+        # (see comment on CACHE_VERSION above re: USING_TSL_PACK).
+        all_nodes = [(node, tag) for tag, nodes in captures_by_tag.items() for node in nodes]
 
         saw = set()
         for node, tag in all_nodes:
