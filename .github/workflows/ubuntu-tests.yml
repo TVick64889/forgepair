@@ -1,22 +1,17 @@
 name: Ubuntu Python Tests
 
+# Runs on every push/PR against main -- no paths-ignore filter. This is
+# deliberate: branch protection requires this check to pass before
+# merge, and a required check that's skipped by a path filter can never
+# report success, which permanently blocks any PR that only touches
+# excluded paths (e.g. README.md). Confirmed this failure mode directly
+# (see CHANGES.md) before removing the filter that used to be here.
+
 on:
   push:
-    paths-ignore:
-      - 'aider/website/**'
-      - 'README.md'
-      - 'HISTORY.md'
-      - '.github/workflows/*'
-      - '!.github/workflows/ubuntu-tests.yml'
     branches:
       - main
   pull_request:
-    paths-ignore:
-      - 'aider/website/**'
-      - 'README.md'
-      - 'HISTORY.md'
-      - '.github/workflows/*'
-      - '!.github/workflows/ubuntu-tests.yml'
     branches:
       - main
 

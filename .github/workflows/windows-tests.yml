@@ -1,22 +1,15 @@
 name: Windows Python Tests
 
+# Runs on every push/PR against main -- no paths-ignore filter, same
+# reasoning as ubuntu-tests.yml (a required branch-protection check that
+# a path filter can skip permanently blocks matching PRs -- confirmed
+# directly, see CHANGES.md).
+
 on:
   push:
-    paths-ignore:
-      - 'aider/website/**'
-      - 'README.md'
-      - 'HISTORY.md'
-      - '.github/workflows/*'
-      - '!.github/workflows/windows-tests.yml'
     branches:
       - main
   pull_request:
-    paths-ignore:
-      - 'aider/website/**'
-      - 'README.md'
-      - 'HISTORY.md'
-      - '.github/workflows/*'
-      - '!.github/workflows/windows-tests.yml'
     branches:
       - main
 
