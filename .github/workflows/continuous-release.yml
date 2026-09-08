@@ -1,0 +1,76 @@
+name: Continuous Release (dry run)
+
+# Computes what the next release tag/version WOULD be on every merge to
+# main, and reports it in the workflow summary -- without actually
+# creating the tag or triggering a PyPI publish.
+#
+# This exists to close the exact gap that hurt upstream aider: commits
+# landed on main for months with no corresponding release, so users
+# never got the fixes. Once ForgePair is ready to publish real packages
+# (see BUILD_PLAN.md Phase 2 item 4), flip DRY_RUN below to false --
+# at that point this workflow will actually create and push the
+# `vX.Y.Z` tag, which is release.yml's existing trigger for building
+# and publishing to PyPI (that workflow is unchanged and already
+# gated on the PYPI_API_TOKEN secret, which is intentionally not
+# configured yet).
+#
+# Version bump policy (dry run and once live): patch bump on every
+# merge to main. This is the aider-established policy already used by
+# setuptools_scm (see pyproject.toml) -- ForgePair keeps it rather than
+# inventing conventional-commit-based bumping, to stay compatible with
+# how the fork's own version numbers are already being derived from
+# git tags.
+
+on:
+  push:
+    branches:
+      - main
+    paths-ignore:
+      - 'aider/website/**'
+      - 'README.md'
+      - 'HISTORY.md'
+      - 'CHANGES.md'
+
+env:
+  DRY_RUN: "true"
+
+jobs:
+  compute-next-version:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0 # need full history + tags for version computation
+
+      - name: Compute next version
+        id: next_version
+        run: |
+          set -x
+          latest_tag=$(git tag --sort=-v:refname | grep -P '^v\d+\.\d+\.\d+$' | head -n 1)
+          if [ -z "$latest_tag" ]; then
+            echo "No existing vX.Y.Z tag found -- would start at v0.1.0"
+            next="0.1.0"
+          else
+            tag_num=${latest_tag#v}
+            IFS='.' read -r major minor patch <<< "$tag_num"
+            next="${major}.${minor}.$((patch + 1))"
+          fi
+          echo "next_version=$next" >> "$GITHUB_OUTPUT"
+          echo "### Next release version: v${next}" >> "$GITHUB_STEP_SUMMARY"
+          echo "" >> "$GITHUB_STEP_SUMMARY"
+          if [ "$DRY_RUN" = "true" ]; then
+            echo "DRY RUN -- no tag created, no release published." >> "$GITHUB_STEP_SUMMARY"
+            echo "When ready to go live: set DRY_RUN to false in this workflow file," >> "$GITHUB_STEP_SUMMARY"
+            echo "add the PYPI_API_TOKEN repo secret, and this job will start" >> "$GITHUB_STEP_SUMMARY"
+            echo "pushing real vX.Y.Z tags, which trigger release.yml's publish step." >> "$GITHUB_STEP_SUMMARY"
+          fi
+
+      - name: Create and push tag
+        if: env.DRY_RUN != 'true'
+        run: |
+          set -x
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git tag "v${{ steps.next_version.outputs.next_version }}"
+          git push origin "v${{ steps.next_version.outputs.next_version }}"

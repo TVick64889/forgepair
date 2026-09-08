@@ -1,11 +1,43 @@
 
-# Contributing to the Project
+# Contributing to ForgePair
 
+ForgePair is a fork of [aider-AI/aider](https://github.com/Aider-AI/aider).
 We welcome contributions in the form of bug reports, feature requests,
 and pull requests (PRs). This document describes how you can
 contribute.
 
+## Governance and merge tiers
+
+ForgePair uses tiered contributor trust to avoid the single-maintainer
+bottleneck that affected upstream aider (see [ARCHITECTURE_REVIEW.md](ARCHITECTURE_REVIEW.md)
+and [BUILD_PLAN.md](BUILD_PLAN.md) for the full reasoning). In short:
+routine, low-risk changes should not require waiting on a single
+person's calendar.
+
+**Low-risk tier** (eligible for streamlined review / trusted-contributor
+merge rights once a contributor has an established track record):
+- Model metadata updates (e.g. `scripts/update_model_lists.py` output,
+  `aider/resources/model-settings.yml` entries for new/updated models)
+- Documentation (README, HISTORY.md, CHANGES.md, this file, docstrings)
+- Dependency version bumps that don't change major versions
+- New or expanded test coverage that doesn't change production code
+  behavior
+
+**Requires deeper review** (any contributor, but expect closer scrutiny
+and likely a maintainer's explicit sign-off, not just green CI):
+- Anything touching `aider/coders/base_coder.py` (the core chat/edit
+  loop shared by every edit format)
+- Anything touching `aider/repo.py`'s commit/attribution logic
+- Anything touching the edit-application pipeline for any coder
+  (`get_edits`/`apply_edits` in any `aider/coders/*_coder.py` file)
+- Anything changing governance, CI, or release automation itself
+
+All PRs must pass CI (tests + lint) before merge, regardless of tier --
+CI is a hard gate, not advisory. See `.github/workflows/` for what
+runs.
+
 ## Bug Reports and Feature Requests
+
 
 Please submit bug reports and feature requests as GitHub issues. This
 helps us to keep track of them and discuss potential solutions or
@@ -33,17 +65,17 @@ ensure that your contributions can be integrated smoothly.
 
 ## Licensing
 
-Before contributing a PR, please review our
-[Individual Contributor License Agreement](https://aider.chat/docs/legal/contributor-agreement.html).
-All contributors will be asked to complete the agreement as part of the PR process.
+ForgePair is licensed under Apache 2.0, same as upstream aider (see
+`LICENSE.txt`). By contributing, you agree your contribution is
+licensed under the same terms.
 
 ## Setting up a Development Environment
 
 ### Clone the Repository
 
 ```
-git clone https://github.com/Aider-AI/aider.git
-cd aider
+git clone https://github.com/TVick64889/forgepair.git
+cd forgepair
 ```
 
 ### Create a Virtual Environment
