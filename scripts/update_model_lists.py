@@ -82,9 +82,7 @@ def main():
     new_block = render_block(openai_models, anthropic_models)
 
     text = MODELS_PY.read_text(encoding="utf-8")
-    pattern = re.compile(
-        re.escape(START_MARKER) + r".*?" + re.escape(END_MARKER), re.DOTALL
-    )
+    pattern = re.compile(re.escape(START_MARKER) + r".*?" + re.escape(END_MARKER), re.DOTALL)
     if not pattern.search(text):
         print(f"ERROR: markers not found in {MODELS_PY}", file=sys.stderr)
         sys.exit(2)

@@ -157,7 +157,12 @@ class TestPatchCoderGetEdits(unittest.TestCase):
                 f.write("one\ntwo\nthree\n")
 
             coder = Coder.create(
-                self.GPT35, "patch", io=self.io, fnames=[fname], stream=False, use_git=False
+                self.GPT35,
+                "patch",
+                io=self.io,
+                fnames=[fname],
+                stream=False,
+                use_git=False,
             )
             coder.partial_response_content = "\n".join(
                 [
@@ -207,7 +212,12 @@ class TestPatchCoderGetEdits(unittest.TestCase):
                 f.write("content\n")
 
             coder = Coder.create(
-                self.GPT35, "patch", io=self.io, fnames=[fname], stream=False, use_git=False
+                self.GPT35,
+                "patch",
+                io=self.io,
+                fnames=[fname],
+                stream=False,
+                use_git=False,
             )
             # Update then Delete on the same path -- conflicting actions
             coder.partial_response_content = "\n".join(
@@ -230,7 +240,12 @@ class TestPatchCoderGetEdits(unittest.TestCase):
                 f.write("one\ntwo\nthree\n")
 
             coder = Coder.create(
-                self.GPT35, "patch", io=self.io, fnames=[fname], stream=False, use_git=False
+                self.GPT35,
+                "patch",
+                io=self.io,
+                fnames=[fname],
+                stream=False,
+                use_git=False,
             )
             # No "*** Begin Patch" sentinel, but content looks patch-like
             coder.partial_response_content = "\n".join(
@@ -261,7 +276,12 @@ class TestPatchCoderApplyEdits(unittest.TestCase):
             )
             from aider.coders.patch_coder import PatchAction
 
-            edits = [("new_file.py", PatchAction(type=ActionType.ADD, path="new_file.py", new_content="hello"))]
+            edits = [
+                (
+                    "new_file.py",
+                    PatchAction(type=ActionType.ADD, path="new_file.py", new_content="hello"),
+                )
+            ]
             coder.apply_edits(edits)
 
             with open("new_file.py") as f:
@@ -274,7 +294,12 @@ class TestPatchCoderApplyEdits(unittest.TestCase):
                 f.write("one\ntwo\nthree\n")
 
             coder = Coder.create(
-                self.GPT35, "patch", io=self.io, fnames=[fname], stream=False, use_git=False
+                self.GPT35,
+                "patch",
+                io=self.io,
+                fnames=[fname],
+                stream=False,
+                use_git=False,
             )
             coder.partial_response_content = "\n".join(
                 [
@@ -301,7 +326,12 @@ class TestPatchCoderApplyEdits(unittest.TestCase):
                 f.write("bye\n")
 
             coder = Coder.create(
-                self.GPT35, "patch", io=self.io, fnames=[fname], stream=False, use_git=False
+                self.GPT35,
+                "patch",
+                io=self.io,
+                fnames=[fname],
+                stream=False,
+                use_git=False,
             )
             from aider.coders.patch_coder import PatchAction
 
