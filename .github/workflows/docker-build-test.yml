@@ -1,5 +1,16 @@
 name: Docker Build Test
 
+# Validates that docker/Dockerfile still builds successfully on every
+# push/PR. Build-only (push: false) -- does not require or use any
+# Docker Hub credentials, and never publishes anything. This is a
+# deliberate choice (see CHANGES.md): the upstream version of this
+# workflow attempted to push a `:dev` tag to Docker Hub on every push
+# to main using DOCKERHUB_USERNAME/DOCKERHUB_PASSWORD secrets, which
+# forks don't inherit -- so it failed on every run with "Username and
+# password required" until fixed here. If/when ForgePair is ready to
+# publish real Docker images, see docker-release.yml (tag-triggered,
+# separately gated) rather than re-enabling pushes here.
+
 on:
   push:
     paths-ignore:
@@ -21,7 +32,7 @@ on:
       - main
 
 jobs:
-  docker_build_and_push:
+  docker_build_test:
     runs-on: ubuntu-latest
     steps:
     - name: Checkout code
@@ -35,15 +46,7 @@ jobs:
     - name: Set up Docker Buildx
       uses: docker/setup-buildx-action@v3
 
-    - name: Login to DockerHub
-      if: ${{ github.event_name != 'pull_request' }}
-      uses: docker/login-action@v3
-      with:
-        username: ${{ secrets.DOCKERHUB_USERNAME }}
-        password: ${{ secrets.DOCKERHUB_PASSWORD }}
-
-    - name: Build Docker images (PR)
-      if: ${{ github.event_name == 'pull_request' }}
+    - name: Build Docker image (no push)
       uses: docker/build-push-action@v5
       with:
         context: .
@@ -52,34 +55,11 @@ jobs:
         push: false
         target: aider
 
-    - name: Build Docker images (Push)
-      if: ${{ github.event_name != 'pull_request' }}
-      uses: docker/build-push-action@v5
-      with:
-        context: .
-        file: ./docker/Dockerfile
-        platforms: linux/amd64,linux/arm64
-        push: true
-        tags: ${{ secrets.DOCKERHUB_USERNAME }}/aider:dev
-        target: aider
-
-    - name: Build Docker full image (PR)
-      if: ${{ github.event_name == 'pull_request' }}
+    - name: Build Docker full image (no push)
       uses: docker/build-push-action@v5
       with:
         context: .
         file: ./docker/Dockerfile
         platforms: linux/amd64,linux/arm64
         push: false
-        target: aider-full
-
-    - name: Build Docker full image (Push)
-      if: ${{ github.event_name != 'pull_request' }}
-      uses: docker/build-push-action@v5
-      with:
-        context: .
-        file: ./docker/Dockerfile
-        platforms: linux/amd64,linux/arm64
-        push: true
-        tags: ${{ secrets.DOCKERHUB_USERNAME }}/aider-full:dev
         target: aider-full

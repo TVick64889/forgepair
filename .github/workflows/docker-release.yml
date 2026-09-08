@@ -1,5 +1,13 @@
 name: Docker Release
 
+# Only runs when a real vX.Y.Z tag is pushed. Currently dormant: this
+# repo's continuous-release.yml workflow is in dry-run mode and does
+# not create/push tags yet (see BUILD_PLAN.md Phase 2 item 4), so this
+# workflow never actually fires today. When continuous-release.yml is
+# flipped to live, this will start running and WILL fail immediately
+# unless DOCKERHUB_USERNAME/DOCKERHUB_PASSWORD secrets are added first
+# (same gating consideration as release.yml's PyPI publish step).
+
 on:
   workflow_dispatch:
   push:
