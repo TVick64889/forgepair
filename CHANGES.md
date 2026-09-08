@@ -142,6 +142,45 @@ IMPROVED
 
 ---
 
+## Phase 3 -- Issue triage redesign (2026-09-08)
+
+NEW
+- Feature requests now get automated triage help for the first time.
+  Previously only bug reports got any automated grouping at all;
+  feature requests relied entirely on a human noticing duplicates.
+  Similar open feature requests are now automatically detected and
+  flagged with a comment linking them together, so duplicate asks are
+  visible without reading the entire backlog.
+- A single, always-current "known issues" page (a pinned, auto-updated
+  GitHub issue) lists the most-reported recurring bugs and any related
+  feature-request clusters, ranked by how many people have hit them.
+  Anyone can check it before filing a new report.
+
+IMPROVED
+- Fixed the core problem with the original duplicate-bug-report
+  handling: it used to close new reports of a known crash and quietly
+  point people at the original issue -- even if that original issue
+  was never actually fixed. Now, a new report is only closed as a
+  duplicate once there's real evidence the original was resolved
+  (a linked fix). If it wasn't, the group is flagged as high-impact
+  instead, so a bug hit by many people becomes MORE visible over time,
+  not less.
+
+REPAIRED
+- Found and fixed a real, previously-invisible bug while verifying
+  this system end-to-end against live data: the "which report came
+  first" comparison never worked correctly because of a timezone
+  mismatch (comparing this server's local time against GitHub's UTC
+  timestamps), so the original bot's duplicate-detection logic never
+  actually found a "first" report to point at -- confirmed by testing
+  it directly with real filed issues. Fixed across all four places in
+  the script with this same timezone bug.
+- Enabled GitHub Issues on the project repository, which had been
+  off (a default for new forks) and would have silently prevented any
+  of this automation from working at all.
+
+---
+
 ## Template for future entries
 
 ## Phase N -- <name> (date)
