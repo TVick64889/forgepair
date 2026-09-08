@@ -10,6 +10,25 @@ name: Docker Build Test
 # password required" until fixed here. If/when ForgePair is ready to
 # publish real Docker images, see docker-release.yml (tag-triggered,
 # separately gated) rather than re-enabling pushes here.
+#
+# Performance notes (see CHANGES.md -- this workflow was originally
+# taking 20+ minutes per run):
+# - amd64 only, not amd64+arm64. arm64 here means QEMU-emulated
+#   software instruction translation, not real hardware -- compiling
+#   this project's heavier native dependencies (tree-sitter, etc.)
+#   under emulation is what made this slow. Since this workflow only
+#   needs to answer "does the Dockerfile still build", not "produce a
+#   real publishable arm64 image", amd64-only is sufficient. Real
+#   multi-arch correctness only matters once images are actually
+#   published -- see docker-release.yml, which still builds both
+#   platforms for that reason.
+# - GitHub Actions layer cache (cache-from/cache-to: type=gha) so
+#   unchanged layers (base image, most pip installs) are reused across
+#   runs instead of rebuilding from scratch every time. First run after
+#   this change will still be a full build; subsequent runs should be
+#   much faster as long as the Dockerfile/dependencies haven't changed.
+# - The two build targets (aider, aider-full) run as a matrix so they
+#   build concurrently instead of sequentially.
 
 on:
   push:
@@ -34,14 +53,14 @@ on:
 jobs:
   docker_build_test:
     runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        target: [aider, aider-full]
     steps:
     - name: Checkout code
       uses: actions/checkout@v4
       with:
         fetch-depth: 0
-
-    - name: Set up QEMU
-      uses: docker/setup-qemu-action@v3
 
     - name: Set up Docker Buildx
       uses: docker/setup-buildx-action@v3
@@ -51,15 +70,8 @@ jobs:
       with:
         context: .
         file: ./docker/Dockerfile
-        platforms: linux/amd64,linux/arm64
+        platforms: linux/amd64
         push: false
-        target: aider
-
-    - name: Build Docker full image (no push)
-      uses: docker/build-push-action@v5
-      with:
-        context: .
-        file: ./docker/Dockerfile
-        platforms: linux/amd64,linux/arm64
-        push: false
-        target: aider-full
+        target: ${{ matrix.target }}
+        cache-from: type=gha,scope=${{ matrix.target }}
+        cache-to: type=gha,mode=max,scope=${{ matrix.target }}
