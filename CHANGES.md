@@ -90,6 +90,58 @@ DEFERRED (tracked, not forgotten)
 
 ---
 
+## Phase 2 -- Governance (2026-09-08)
+
+NEW
+- Contributor merge tiers documented in CONTRIBUTING.md: low-risk
+  changes (model metadata, docs, dependency bumps, test-only changes)
+  vs. changes requiring deeper review (core chat/edit loop, git
+  commit/attribution logic, edit-application pipeline, CI/release
+  automation itself).
+- Continuous-release automation added (currently dry-run): computes
+  and reports what the next release version would be on every merge to
+  main, directly targeting the exact problem that hurt upstream aider
+  (commits sat on main for months with no corresponding release).
+  Not live yet -- reports the number, doesn't publish -- until there's
+  a real package to publish.
+- Weekly automated check that the model-name lookup lists (see Phase 1)
+  haven't gone stale, opening an issue if they have. Closes the gap
+  Phase 1 explicitly flagged: regenerating the lists was fixed, but
+  nothing was scheduled to actually run the regeneration.
+- Branch protection enabled on `main`: required status checks (full
+  test suite across 5 Python versions on both Windows and Ubuntu, plus
+  linting and a Docker build check) must pass before anything can
+  merge -- including for the repo owner. Verified directly by
+  attempting a direct push (correctly rejected) and by running a real
+  pull request through the full flow to a real merge.
+
+IMPROVED
+- Fixed a real CI bug in the process of setting this up: the automated
+  Docker build check was still configured (leftover from upstream) to
+  push images to Docker Hub using credentials that don't exist for
+  this project, so it failed on every single run since the fork was
+  created. Changed it to build-only -- it still verifies the Dockerfile
+  works, just doesn't try to publish anywhere. (Publishing real Docker
+  images is a distribution decision for closer to an actual release,
+  not something to wire up speculatively now.)
+- That same Docker check was also very slow (20+ minutes, sometimes
+  longer). The slow part was building for a second CPU architecture
+  (arm64) using software emulation, which is much slower than it needs
+  to be for a check that's just confirming "does this still build."
+  Narrowed it to one architecture plus build caching -- same check,
+  same coverage of the thing that matters, about 4x faster (~6 minutes).
+- Found and fixed a subtler problem while testing branch protection:
+  several of the required checks had filters that skipped them
+  entirely for certain kinds of changes (like README-only edits).
+  That's fine on its own, but combined with "this check is required
+  to merge," it meant some pull requests could get permanently stuck
+  with no way to pass, because the check required to unblock them
+  would just never run. Confirmed this by deliberately opening a test
+  PR that touched only documentation and watching it get stuck.
+  Removed those filters so every required check always runs.
+
+---
+
 ## Template for future entries
 
 ## Phase N -- <name> (date)
