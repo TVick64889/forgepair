@@ -42,7 +42,7 @@ jobs:
       # Disable that unused source list before updating so this job's
       # apt-get update can't be broken by an unrelated third-party repo.
       run: |
-        sudo rm -f /etc/apt/sources.list.d/google-chrome.list
+        sudo grep -rl 'dl.google.com' /etc/apt/sources.list.d/ 2>/dev/null | xargs -r sudo rm -f
         sudo apt-get update
         sudo apt-get install -y libportaudio2
 
