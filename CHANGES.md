@@ -211,6 +211,26 @@ REPAIRED
 
 ---
 
+## Phase 5 -- Honest failure handling on provider errors (2026-09-09)
+
+REPAIRED
+- Fixed a real, previously-reported bug: sometimes an AI provider would
+  respond but send back nothing usable -- no answer, no error -- often
+  during a rate limit or outage. Aider would just... stop, showing
+  "0 received" with zero explanation, leaving the user wondering what
+  happened or whether it was their own fault. Now this is treated like
+  any other connection problem: you get a clear message saying what
+  happened, and it automatically retries a few times with increasing
+  waits before finally giving up -- the same way it already handles
+  other provider hiccups, just extended to cover this case too.
+- The bug turned out to be worse in one of the two response modes
+  (non-streaming) than the other: the streaming mode at least printed
+  a warning (though it still didn't retry), while the non-streaming
+  mode failed completely silently with no warning of any kind. Both
+  are fixed the same way now.
+
+---
+
 ## Template for future entries
 
 ## Phase N -- <name> (date)
