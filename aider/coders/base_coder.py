@@ -70,6 +70,18 @@ class FinishReasonLength(Exception):
     pass
 
 
+class EmptyResponseError(Exception):
+    """
+    Raised when a provider response 'succeeds' (no exception from litellm)
+    but contains no assistant content and no tool/function call -- the
+    silent-failure class of bug behind aider issue #3264 (rate-limited
+    free-tier model produced a 200-equivalent response with 0 tokens
+    received, and the user saw no error at all). See BUILD_PLAN.md Phase 5.
+    """
+
+    pass
+
+
 def wrap_fence(name):
     return f"<{name}>", f"</{name}>"
 
@@ -1488,6 +1500,24 @@ class Coder:
                     self.io.tool_output(f"Retrying in {retry_delay:.1f} seconds...")
                     time.sleep(retry_delay)
                     continue
+                except EmptyResponseError as err:
+                    # Silent-failure class of bug behind aider issue #3264: the
+                    # provider "succeeded" but returned no content and no tool
+                    # call. Treat it like any other retryable provider error --
+                    # same exponential backoff, same eventual give-up -- rather
+                    # than letting the turn complete silently with 0 tokens
+                    # received and no explanation (per BUILD_PLAN.md Phase 5 /
+                    # SPEC.md section 7 item 3).
+                    self.io.tool_error(str(err))
+
+                    retry_delay *= 2
+                    if retry_delay > RETRY_TIMEOUT:
+                        self.mdstream = None
+                        break
+
+                    self.io.tool_output(f"Retrying in {retry_delay:.1f} seconds...")
+                    time.sleep(retry_delay)
+                    continue
                 except KeyboardInterrupt:
                     interrupted = True
                     break
@@ -1811,6 +1841,17 @@ class Coder:
 
             # Calculate costs for successful responses
             self.calculate_and_show_tokens_and_cost(messages, completion)
+
+            if (
+                not self.partial_response_content
+                and not self.partial_response_function_call
+                and not self.got_reasoning_content
+            ):
+                raise EmptyResponseError(
+                    "The provider returned a response with no content and no tool call."
+                    " This can happen on rate-limits, provider outages, or a truncated"
+                    " stream that never sent a proper error."
+                )
 
         except LiteLLMExceptions().exceptions_tuple() as err:
             ex_info = LiteLLMExceptions().get_ex_info(err)
