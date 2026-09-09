@@ -98,3 +98,39 @@ coder = Coder.create(model=model, fnames=fnames, io=io)
 {: .note }
 The python scripting API is not officially supported or documented,
 and could change in future releases without providing backwards compatibility.
+
+## Editor/IDE integration via shell-out
+
+Aider is terminal-first by design -- full IDE extensions are
+intentionally out of scope for now -- but the CLI flags above provide
+a stable enough contract for an editor extension or script to shell
+out to aider for a single scripted task, without needing to talk to
+aider's internal Python API directly:
+
+- **Invocation**: `aider --message "<instruction>" --yes-always <files...>`
+  (or `--message-file <path>` for longer/templated instructions) runs one
+  instruction non-interactively against the given files and exits --
+  no chat loop, no prompts left waiting for input.
+- **Exit codes**: aider currently distinguishes only two outcomes --
+  `0` (the run completed, though this does not by itself guarantee an
+  edit was actually applied -- e.g. `--dry-run` also exits `0`) and `1`
+  (something on the error paths failed: bad arguments, git/repo
+  problems, LLM/API errors, malformed edit responses, etc.). There is
+  currently no differentiated exit code for e.g. "edits were rejected"
+  vs. "provider error" vs. "malformed LLM response" -- if your
+  integration needs to distinguish these, parse aider's stdout/stderr
+  output rather than relying on the exit code alone, or use the Python
+  scripting API above where you get direct access to
+  `coder.aider_edited_files` and similar attributes after each `run()`
+  call.
+- **Non-interactive mode**: pair `--message`/`--message-file` with
+  `--yes-always` for scripting -- without it, aider may still prompt
+  for confirmations (e.g. adding a mentioned file, `--confirm-edits`)
+  and hang waiting for input that will never come in a non-interactive
+  context.
+- **Editor-adjacent workflow without a dedicated plugin**: for
+  in-editor triggering without shelling out to the CLI at all, see
+  [Aider in your IDE](/docs/usage/watch.html) -- `--watch-files` lets
+  aider watch your repo for `AI!`/`AI?` comments added in any editor
+  and act on them, which covers much of what a dedicated IDE plugin
+  would provide.
