@@ -744,6 +744,10 @@ Specify the .env file to load (default: .env in git root)
 Default: .env  
 Environment variable: `AIDER_ENV_FILE`  
 
+### `--mcp-config-file MCP_CONFIG_FILE`
+Specify an additional .mcp.json file declaring MCP servers (default: search for .mcp.json in git root, cwd, or home directory; same mcpServers schema used by Claude Code/Claude Desktop). Highest precedence if given.  
+Environment variable: `AIDER_MCP_CONFIG_FILE`  
+
 ### `--suggest-shell-commands`
 Enable/disable suggesting shell commands (default: True)  
 Default: True  

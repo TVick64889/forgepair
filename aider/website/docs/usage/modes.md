@@ -12,6 +12,7 @@ Aider has a few different chat modes:
 - `ask` - Aider will discuss your code and answer questions about it, but never make changes.
 - `architect` - Like code mode, aider will change your files. An architect model will propose changes and an editor model will translate that proposal into specific file edits.
 - `help` - Aider will answer questions about aider: usage, configuration, troubleshooting, etc.
+- `agent` - Launch-time only (not a `/`-command mode you switch to mid-session): lets the model call tools exposed by configured [MCP servers](#agent-mode-mcp-tool-use) instead of editing files directly. See below.
 
 By default, aider starts in "code" mode. As you are talking, you can
 send individual messages in a specific mode using 
@@ -149,6 +150,56 @@ are the recommended edit formats when using architect mode.
 See this article on 
 [aider's architect/editor mode](/2024/09/26/architect.html)
 for more details.
+
+## Agent mode (MCP tool use)
+
+Launch aider with `--edit-format agent` to let the model call tools exposed
+by external [MCP (Model Context Protocol)](https://modelcontextprotocol.io)
+servers -- reading files, running scripts, or querying whatever a
+configured server exposes, rather than aider's usual internal file-edit
+workflow. Unlike `code`/`ask`/`architect`, agent mode is not a `/`-command
+you switch to mid-session; it's a top-level edit format you launch with.
+
+Declare MCP servers in a `.mcp.json` file, using the same `mcpServers`
+schema as Claude Code and Claude Desktop:
+
+```json
+{
+  "mcpServers": {
+    "filesystem": {
+      "command": "npx",
+      "args": ["-y", "@modelcontextprotocol/server-filesystem", "/path/to/allow"]
+    }
+  }
+}
+```
+
+Aider searches for `.mcp.json` in your home directory, git root, and
+current directory (same order as `.aider.conf.yml`/`.env`), or you can
+point at a specific file with `--mcp-config-file`. Values can reference
+environment variables with `${VAR_NAME}` syntax, so a committed
+`.mcp.json` never needs to contain a secret directly:
+
+```json
+{
+  "mcpServers": {
+    "some-server": {
+      "command": "some-mcp-server-binary",
+      "env": {"API_KEY": "${MY_SERVICE_API_KEY}"}
+    }
+  }
+}
+```
+
+Note: remote HTTP MCP servers (`"url": "..."` instead of `"command"`)
+are supported, but custom auth headers/bearer tokens for them are not
+yet -- only local stdio servers can currently use `${VAR_NAME}`
+interpolation for credentials via the `env` field above.
+
+Every MCP tool call requires your explicit approval before it runs,
+regardless of `--yes-always` or `--confirm-edits` -- MCP tools can have
+side effects well beyond editing a file in your repo, so aider always
+asks first.
 
 
 ## Examples
