@@ -133,6 +133,56 @@ def test_git_index_version_greater_than_2(mock_browser, create_repo, mock_io):
     )
 
 
+def test_real_git_index_version_3_repo_works_without_error(create_repo, mock_io):
+    """
+    Regression test for aider issue #211 (GitPython incompatibility with
+    git index-version-3 repos). Unlike test_git_index_version_greater_than_2
+    above, which only proves the error-handling UI path works IF GitPython
+    raises a version error, this test creates a REAL index-v3 file via a
+    real `git add -N` (the actual trigger confirmed in the upstream
+    GitPython issue thread, gitpython-developers/GitPython#1960) and
+    exercises aider's real GitRepo class against it -- no mocked GitError.
+
+    GitPython's own index-v3 support (gitpython-developers/GitPython#2081,
+    merged 2025-11-09) landed before our pinned gitpython==3.1.46 (released
+    2026-01-01), so this is expected to just work now. If GitPython ever
+    regresses this support, or our pin moves to a version that dropped it
+    again, this test will catch it with a real repro instead of a mock.
+    """
+    from aider.repo import GitRepo
+
+    repo_path, repo = create_repo
+
+    # Trigger a real index-v3 write: `git add -N` (intent-to-add) is the
+    # confirmed real-world trigger from the upstream issue thread.
+    new_file = repo_path / "file2.txt"
+    new_file.write_text("second file\n")
+    repo.git.add("-N", str(new_file.relative_to(repo_path)))
+
+    # Confirm the index really is version 3 before testing aider against it
+    # -- if this assertion ever fails, the test below would be a false
+    # positive (not actually exercising the index-v3 code path).
+    index_path = os.path.join(repo_path, ".git", "index")
+    with open(index_path, "rb") as f:
+        signature = f.read(4)
+        version = struct.unpack(">I", f.read(4))[0]
+    assert signature == b"DIRC"
+    assert version == 3, "test setup didn't actually produce an index-v3 file"
+
+    git_repo = GitRepo(mock_io, [], str(repo_path))
+
+    # The real assertion: no GitError, tracked files list correctly.
+    assert git_repo.git_repo_error is None
+    tracked = git_repo.get_tracked_files()
+    assert "README.md" in tracked
+    assert "file2.txt" in tracked
+
+    # And the full sanity_check_repo flow treats this repo as healthy.
+    result = sanity_check_repo(git_repo, mock_io)
+    assert result is True
+    mock_io.tool_error.assert_not_called()
+
+
 def test_bare_repository(create_repo, mock_io, tmp_path):
     # Initialize a bare repository
     bare_repo_path = tmp_path / "bare_repo.git"
