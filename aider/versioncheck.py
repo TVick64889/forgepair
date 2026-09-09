@@ -21,7 +21,7 @@ def install_from_main_branch(io):
         io,
         None,
         "Install the development version of aider from the main branch?",
-        ["git+https://github.com/Aider-AI/aider.git"],
+        ["git+https://github.com/TVick64889/forgepair.git"],
         self_update=True,
     )
 
@@ -50,7 +50,7 @@ def install_upgrade(io, latest_version=None):
         io,
         None,
         new_ver_text,
-        ["aider-chat"],
+        ["forgepair"],
         self_update=True,
     )
 
@@ -75,7 +75,7 @@ def check_version(io, just_check=False, verbose=False):
     import requests
 
     try:
-        response = requests.get("https://pypi.org/pypi/aider-chat/json")
+        response = requests.get("https://pypi.org/pypi/forgepair/json")
         data = response.json()
         latest_version = data["info"]["version"]
         current_version = aider.__version__

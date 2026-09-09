@@ -4,6 +4,7 @@ aider.code-workspace
 *.pyc
 .aider*
 aider_chat.egg-info/
+forgepair.egg-info/
 build
 dist/
 Gemfile.lock
