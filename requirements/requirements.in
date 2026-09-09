@@ -29,8 +29,9 @@ socksio
 pillow
 shtab
 oslex
-mcp>=1.9.0
+mcp>=1.9.0,<2
 -r python-compat.in
+-r pydub.in
 
 # The proper dependency is networkx[default], but this brings
 # in matplotlib and a bunch of other deps
