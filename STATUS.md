@@ -27,7 +27,25 @@ merged:
   responses).
 - Native MCP (Model Context Protocol) client support (`--edit-format
   agent`) -- verified with a live demo against a real MCP server and a
-  real LLM, not just automated tests.
+  real LLM, not just automated tests. Authentication support for
+  remote HTTP MCP servers (bearer token / API key via `.mcp.json`
+  `headers`) added and verified against a real server enforcing real
+  401s, not mocks.
+- Pinned `black` version upgraded (`23.3.0` -> `26.5.1`) and the
+  repo-wide reformat applied as its own isolated PR; the old
+  Python-3.11-pre-commit-venv workaround is no longer needed for
+  compatibility (CONTRIBUTING.md's note on it can be pruned in a
+  follow-up doc pass).
+- `requirements/common-constraints.txt`'s scipy/numpy version-branch
+  conflict (see former issue #18) fixed -- `scripts/pip-compile.sh`
+  now compiles with `--universal --python-version 3.10`, resolving the
+  full Python 3.10-3.14 support matrix correctly instead of collapsing
+  to one interpreter's pins. The old hand-patch splice hack is gone.
+- GitHub Copilot model metadata gap resolved -- verified live against
+  a real Copilot Free account's `/models` endpoint (not just static
+  litellm inspection): added local `model-metadata.json` entries for
+  24 models the Copilot API currently serves that litellm doesn't yet
+  have pricing/context-window data for.
 
 See [CHANGES.md](CHANGES.md) for the detailed, dated changelog of all
 of the above.
@@ -43,26 +61,16 @@ rediscovered.
 
 ### Governance / CI
 
-- **Pinned `black` version is outdated** (`23.3.0` in
-  `.pre-commit-config.yaml`, incompatible with Python 3.12+). Worked
-  around today via a persistent Python 3.11 pre-commit virtualenv (see
-  CONTRIBUTING.md). Upgrading the pin properly would reformat a large
-  amount of unrelated pre-existing code, so it needs its own isolated,
-  reviewed PR rather than being bundled into other work.
-- **`requirements/common-constraints.txt` pins `scipy==1.17.1`
-  unconditionally**, which conflicts with `requirements/python-compat.in`'s
-  Python-version-branched constraint (`scipy<1.16` for Python <3.11).
-  This blocks using `uv pip compile --universal` to regenerate
-  `requirements.txt` safely -- the current workaround is a
-  single-platform compile followed by hand-restoring the affected
-  marker branches, which is fragile and has already caused one real CI
-  regression that had to be fixed. See
-  [issue #18](https://github.com/TVick64889/forgepair/issues/18) for
-  full repro steps and a suggested fix.
-- Docker Hub publishing is intentionally *not* configured (no Docker
-  Hub account exists yet, no current user demand for a pullable
-  image). `docker-build-test.yml` runs build-only so CI doesn't depend
-  on this. Revisit before any real release.
+- **Docker Hub publishing is intentionally not configured by
+  default** (no ForgePair-maintained Docker Hub account exists, no
+  current user demand for a pullable image maintained by this
+  project). `docker-build-test.yml` runs build-only on every PR so CI
+  validates the Dockerfile without needing any Docker Hub credentials.
+  Anyone can still use ForgePair via Docker today without waiting on
+  this -- see "Using ForgePair via Docker" below for both the
+  build-it-yourself path (works right now, zero setup) and how a fork
+  maintainer can turn on publishing to their own Docker Hub if they
+  want a pullable image.
 
 ### MCP (Model Context Protocol) client
 
@@ -70,23 +78,11 @@ rediscovered.
   "resources" (readable data sources) and "prompts" (reusable prompt
   templates); a server that primarily exposes those rather than
   callable tools will connect successfully but expose nothing usable
-  today.
-- **No authentication support for remote HTTP MCP servers.** Only
-  local stdio servers and unauthenticated HTTP servers can be
-  connected to -- most real hosted MCP servers require a bearer token
-  or API key, which isn't wired up yet.
-
-### GitHub Copilot provider
-
-- litellm's native `github_copilot/` provider (OAuth device-flow
-  login, automatic token refresh) is wired up with the headers
-  Copilot's API requires, documented, and tested -- but **no
-  `model-settings.yml` entries have been added or verified** for
-  common `github_copilot/*` models. Checking whether litellm's own
-  metadata already covers them requires a real GitHub OAuth
-  device-flow login (confirmed: even static model-info lookups
-  trigger it), so this can't be verified from a script or in CI
-  without a dedicated test GitHub account.
+  today. Scoped follow-up: new slash commands (e.g. `/mcp-resources`,
+  `/mcp-prompts`) to list and pull content into chat, since resources
+  and prompts aren't callable functions like tools and need their own
+  user-facing surface rather than just internal plumbing. (Remote HTTP
+  auth, the other half of this gap, is done -- see "What's done".)
 
 ### Not started (explicitly lower priority, not required for v1)
 
@@ -111,3 +107,51 @@ Per SPEC.md's own non-goals:
 - [ARCHITECTURE_REVIEW.md](ARCHITECTURE_REVIEW.md) -- the original
   codebase deep-dive that the fork-vs-rebuild decision and much of the
   phase sequencing was based on.
+
+## Using ForgePair via Docker
+
+ForgePair doesn't publish a pullable image to Docker Hub itself (see
+"Docker Hub publishing" under Known gaps above), but the Dockerfile is
+validated on every PR, so building it yourself works today with zero
+setup on the maintainers' end.
+
+### Build it yourself (works right now)
+
+```
+git clone https://github.com/TVick64889/forgepair
+cd forgepair
+docker build -t forgepair -f docker/Dockerfile --target aider .
+docker run -it --rm -v "$(pwd):/app" forgepair
+```
+
+Two build targets exist (`--target aider` or `--target aider-full`,
+matching `docker-build-test.yml`'s CI matrix) -- `aider-full` includes
+extra optional dependencies (e.g. the `help`/browser extras) that
+`aider` doesn't, at the cost of a larger image.
+
+### Publishing to your own Docker Hub (for a fork maintainer)
+
+If you maintain a fork and want a pullable image for your users, the
+publish workflow already exists and just needs your own credentials:
+
+1. Create a Docker Hub account (free tier is fine) and a repository to
+   push to.
+2. In your fork's GitHub repo settings, add two secrets:
+   `DOCKERHUB_USERNAME` and `DOCKERHUB_PASSWORD` (a
+   [Docker Hub access token](https://docs.docker.com/security/for-developers/access-tokens/),
+   not your account password, is recommended).
+3. `.github/workflows/docker-release.yml` triggers on any `vX.Y.Z` tag
+   push and builds+pushes both targets, multi-arch (amd64+arm64), to
+   `${DOCKERHUB_USERNAME}/aider` and `${DOCKERHUB_USERNAME}/aider-full`.
+   Note: this repo's own `continuous-release.yml` is currently in
+   dry-run mode and doesn't push version tags yet (see BUILD_PLAN.md
+   Phase 2 item 4) -- if you want tag-triggered publishing to actually
+   fire, you'll need your own tagging process (e.g. push a `v1.0.0` tag
+   by hand, or flip your fork's release workflow live) until that
+   changes upstream.
+4. Alternatively, trigger `docker-release.yml` manually any time via
+   `workflow_dispatch` (the "Run workflow" button in the Actions tab)
+   without needing a tag push at all.
+
+This is entirely opt-in and per-fork -- nothing above affects anyone
+who just wants to build and run locally.
