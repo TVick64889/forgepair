@@ -1,5 +1,7 @@
+import hashlib
 import os
 import tempfile
+import types
 import unittest
 from pathlib import Path
 from unittest.mock import MagicMock, patch
@@ -1436,6 +1438,123 @@ This command will print 'Hello, World!' to the console."""
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class TestEmptyResponseHandling(unittest.TestCase):
+    """
+    Tests for the Phase 5 fix (BUILD_PLAN.md Phase 5, SPEC.md section 7
+    item 3): a provider response that "succeeds" (no exception from
+    litellm) but contains no content and no tool call used to complete
+    the turn completely silently -- the class of bug behind aider issue
+    #3264 (rate-limited free-tier model, "Tokens: 2.9k sent, 0
+    received", no explanation). Confirms both the non-streaming and
+    streaming paths now raise/retry instead of silently succeeding, and
+    that a genuinely successful response is unaffected.
+    """
+
+    def setUp(self):
+        self.GPT35 = Model("gpt-3.5-turbo")
+        self.io = InputOutput(yes=True)
+
+    def _make_coder(self, stream):
+        coder = Coder.create(
+            self.GPT35, "diff", io=self.io, fnames=[], stream=stream, use_git=False
+        )
+        coder.init_before_message()
+        return coder
+
+    def _fake_non_streaming_completion(self, content):
+        """Mimics litellm's non-streaming completion response shape."""
+        message = types.SimpleNamespace(content=content, tool_calls=None, reasoning_content=None)
+        choice = types.SimpleNamespace(message=message, finish_reason="stop")
+        return types.SimpleNamespace(choices=[choice])
+
+    def _fake_streaming_chunks(self, content_pieces):
+        """Mimics litellm's streaming chunk shape -- a list of chunks,
+        each with .choices[0].delta.content (and no tool_calls/reasoning)."""
+        chunks = []
+        for piece in content_pieces:
+            delta = types.SimpleNamespace(content=piece, reasoning_content=None)
+            # delta.function_call intentionally absent -> AttributeError,
+            # matching real litellm chunks with no tool call in progress.
+            choice = types.SimpleNamespace(delta=delta, finish_reason=None)
+            chunks.append(types.SimpleNamespace(choices=[choice]))
+        return chunks
+
+    def test_non_streaming_empty_content_raises_and_is_retried(self):
+        coder = self._make_coder(stream=False)
+        fake_completion = self._fake_non_streaming_completion(content="")
+        with patch.object(
+            self.GPT35,
+            "send_completion",
+            return_value=(hashlib.sha1(b"x"), fake_completion),
+        ) as mock_send:
+            with patch("time.sleep"):  # don't actually wait during the test
+                list(coder.send_message("hello"))
+
+        # RETRY_TIMEOUT=60, retry_delay starts at 0.125 and doubles each
+        # attempt (0.125, 0.25, ... ) until it exceeds 60 -- that's a
+        # bounded, deterministic number of attempts, not infinite.
+        self.assertGreater(mock_send.call_count, 1, "should have retried at least once")
+        # Eventually gives up rather than retrying forever.
+        self.assertLess(mock_send.call_count, 20)
+
+    def test_non_streaming_real_content_does_not_trigger_retry(self):
+        coder = self._make_coder(stream=False)
+        fake_completion = self._fake_non_streaming_completion(content="Hello, world!")
+        with patch.object(
+            self.GPT35,
+            "send_completion",
+            return_value=(hashlib.sha1(b"x"), fake_completion),
+        ) as mock_send:
+            list(coder.send_message("hello"))
+
+        self.assertEqual(mock_send.call_count, 1, "should not retry a real response")
+        self.assertEqual(coder.partial_response_content, "Hello, world!")
+
+    def test_streaming_empty_content_raises_and_is_retried(self):
+        coder = self._make_coder(stream=True)
+        empty_chunks = iter(self._fake_streaming_chunks([""]))
+        with patch.object(
+            self.GPT35,
+            "send_completion",
+            return_value=(hashlib.sha1(b"x"), empty_chunks),
+        ) as mock_send:
+            with patch("time.sleep"):
+                list(coder.send_message("hello"))
+
+        self.assertGreater(mock_send.call_count, 1, "should have retried at least once")
+        self.assertLess(mock_send.call_count, 20)
+
+    def test_streaming_real_content_does_not_trigger_retry(self):
+        coder = self._make_coder(stream=True)
+        real_chunks = iter(self._fake_streaming_chunks(["Hello", ", world!"]))
+        with patch.object(
+            self.GPT35,
+            "send_completion",
+            return_value=(hashlib.sha1(b"x"), real_chunks),
+        ) as mock_send:
+            list(coder.send_message("hello"))
+
+        self.assertEqual(mock_send.call_count, 1, "should not retry a real response")
+        self.assertEqual(coder.partial_response_content, "Hello, world!")
+
+    def test_empty_response_surfaces_a_visible_error_not_silence(self):
+        coder = self._make_coder(stream=False)
+        fake_completion = self._fake_non_streaming_completion(content="")
+        coder.io.tool_error = MagicMock()
+        with patch.object(
+            self.GPT35,
+            "send_completion",
+            return_value=(hashlib.sha1(b"x"), fake_completion),
+        ):
+            with patch("time.sleep"):
+                list(coder.send_message("hello"))
+
+        # The user must see SOME explicit error, not a blank turn.
+        coder.io.tool_error.assert_called()
+        error_texts = " ".join(str(c.args[0]) for c in coder.io.tool_error.call_args_list)
+        self.assertIn("no content", error_texts.lower())
 
 
 class TestConfirmEditsBeforeApply(unittest.TestCase):
