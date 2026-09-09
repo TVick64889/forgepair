@@ -35,6 +35,8 @@ attrs==25.4.0
     #   aiohttp
     #   jsonschema
     #   referencing
+audioop-lts==0.2.2 ; python_full_version >= '3.13'
+    # via -r requirements/pydub.in
 backoff==2.2.1
     # via
     #   -r requirements/requirements.in
