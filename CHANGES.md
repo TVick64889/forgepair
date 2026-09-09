@@ -231,6 +231,52 @@ REPAIRED
 
 ---
 
+## Phase 6 -- MCP client support (2026-09-09, IN PROGRESS)
+
+Steps 1-6 done; step 7's live real-LLM demo pending (config/connect/
+tool-discovery already verified against a real MCP server). This
+entry will be finalized once the live demo closes out. Recorded now
+per the "living document, updated as work happens" policy above.
+
+NEW
+- Native MCP (Model Context Protocol) client support via a new "agent"
+  mode (`--edit-format agent`). Declare MCP servers in a `.mcp.json`
+  file (same schema as Claude Code/Claude Desktop, so anyone who's
+  configured MCP for those tools will recognize it immediately) and
+  aider will connect to them, discover their tools, and let the model
+  call them mid-conversation -- reading files, running scripts,
+  querying external services, or anything else an MCP server exposes,
+  not just the built-in file-edit workflow.
+- Every MCP tool call requires explicit approval before it runs,
+  regardless of `--yes-always` or `--confirm-edits` -- MCP tools can
+  have side effects well beyond editing a file in your repo, so the
+  blast radius is less predictable and always gets a confirmation
+  prompt.
+- New `--mcp-config-file` flag to point at a specific `.mcp.json` file;
+  otherwise aider searches home directory, git root, and cwd (same
+  search order as `.aider.conf.yml`/`.env`), merging by server name
+  with the more specific file winning.
+
+IMPROVED
+- Fixed a real gap in the existing tool-calling plumbing: aider's
+  streaming response handler only ever read the older, deprecated
+  single-function-call shape from providers, never the current
+  multi-tool `tool_calls` shape -- so under the default `--stream`
+  mode, any response that used the modern tool-calling format was
+  silently dropped and misread as an empty/failed response. Fixed as
+  part of building MCP support, but benefits any future tool-calling
+  work, not just MCP.
+
+DEFERRED
+- Live demo against a real, commonly-used MCP server with a real LLM
+  (BUILD_PLAN.md Phase 6 exit criteria) -- the mechanism is built and
+  tested end-to-end against a real MCP server for config/connect/
+  discovery, and against a mocked LLM for the full tool-call round
+  trip, but a live run with an actual model provider is still needed
+  to close this out.
+
+---
+
 ## Template for future entries
 
 ## Phase N -- <name> (date)

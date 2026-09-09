@@ -1751,18 +1751,22 @@ class Coder:
         self.ok_to_warm_cache = False
 
     def add_assistant_reply_to_cur_messages(self):
-        if self.partial_response_content:
-            self.cur_messages += [dict(role="assistant", content=self.partial_response_content)]
         if self.partial_response_tool_calls:
             # tool_calls (2+ / MCP-style) takes precedence over the legacy
             # single function_call shape below -- partial_response_function_call
             # is still populated alongside it (kept for parse_partial_args()
             # backward-compat with non-agent edit formats), but emitting both
-            # would add two conflicting assistant messages for the same turn.
+            # would add a conflicting extra assistant message for the same turn.
+            #
+            # content and tool_calls belong on the SAME assistant message (a
+            # model can explain what it's doing in plain text and call a tool
+            # in one turn) -- earlier versions of this appended two separate
+            # assistant-role messages for that case, which doesn't match the
+            # OpenAI/MCP message shape and could confuse strict providers.
             self.cur_messages += [
                 dict(
                     role="assistant",
-                    content=None,
+                    content=self.partial_response_content or None,
                     tool_calls=[
                         dict(
                             id=tc.id,
@@ -1776,6 +1780,8 @@ class Coder:
                     ],
                 )
             ]
+        elif self.partial_response_content:
+            self.cur_messages += [dict(role="assistant", content=self.partial_response_content)]
         elif self.partial_response_function_call:
             self.cur_messages += [
                 dict(

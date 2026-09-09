@@ -81,6 +81,24 @@ class TestAgentCoderRoundTrip(unittest.TestCase):
         choice = types.SimpleNamespace(message=message, finish_reason="tool_calls")
         return types.SimpleNamespace(choices=[choice])
 
+    def _fake_multi_tool_call_completion(self, calls):
+        """calls: list of (call_id, name, arguments) -- simulates a single
+        turn where the model requests multiple tool calls at once
+        (parallel_tool_calls), which real providers support."""
+        tool_calls = [
+            ChatCompletionMessageToolCall(
+                id=call_id,
+                type="function",
+                function=Function(name=name, arguments=json.dumps(arguments)),
+            )
+            for call_id, name, arguments in calls
+        ]
+        message = types.SimpleNamespace(
+            content=None, tool_calls=tool_calls, reasoning_content=None
+        )
+        choice = types.SimpleNamespace(message=message, finish_reason="tool_calls")
+        return types.SimpleNamespace(choices=[choice])
+
     def _fake_text_completion(self, text):
         message = types.SimpleNamespace(content=text, tool_calls=None, reasoning_content=None)
         choice = types.SimpleNamespace(message=message, finish_reason="stop")
@@ -167,6 +185,51 @@ class TestAgentCoderRoundTrip(unittest.TestCase):
         tool_messages = [m for m in coder.cur_messages if m.get("role") == "tool"]
         self.assertTrue(tool_messages)
         self.assertIn("unknown tool", tool_messages[-1]["content"].lower())
+
+    def test_multiple_tool_calls_in_one_turn_each_get_a_matching_result(self):
+        """Real providers support parallel_tool_calls: a single assistant
+        turn can request several tool calls at once, each with its own
+        tool_call_id, and each needs its own role=tool result referencing
+        that same id -- not just the last one processed."""
+        coder = self._make_coder()
+        coder.io.confirm_ask = MagicMock(return_value=True)
+
+        responses = [
+            self._fake_multi_tool_call_completion(
+                [
+                    ("call_a", "mcp__echo-test__echo", {"message": "first"}),
+                    ("call_b", "mcp__echo-test__echo", {"message": "second"}),
+                ]
+            ),
+            self._fake_text_completion("Both echoes done."),
+        ]
+        with patch.object(
+            self.model,
+            "send_completion",
+            side_effect=[(hashlib.sha1(b"x"), r) for r in responses],
+        ) as mock_send:
+            coder.run_one("please echo two things", preproc=False)
+
+        self.assertEqual(mock_send.call_count, 2)
+        self.assertEqual(coder.io.confirm_ask.call_count, 2, "each call needs its own approval")
+
+        tool_messages = [m for m in coder.cur_messages if m.get("role") == "tool"]
+        self.assertEqual(len(tool_messages), 2)
+        by_id = {m["tool_call_id"]: m["content"] for m in tool_messages}
+        self.assertIn("first", by_id.get("call_a", ""))
+        self.assertIn("second", by_id.get("call_b", ""))
+
+        # The assistant message recording the tool_calls must list both
+        # ids, not just the last one, so the tool-result messages have a
+        # matching parent to reference.
+        assistant_tool_call_msgs = [
+            m
+            for m in coder.cur_messages
+            if m.get("role") == "assistant" and m.get("tool_calls")
+        ]
+        self.assertEqual(len(assistant_tool_call_msgs), 1)
+        recorded_ids = {tc["id"] for tc in assistant_tool_call_msgs[0]["tool_calls"]}
+        self.assertEqual(recorded_ids, {"call_a", "call_b"})
 
 
 if __name__ == "__main__":

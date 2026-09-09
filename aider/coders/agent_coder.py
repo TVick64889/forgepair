@@ -27,6 +27,13 @@ class AgentCoder(Coder):
 
     edit_format = "agent"
     gpt_prompts = AgentPrompts()
+    # Each tool call consumes one reflection cycle (see reply_completed()
+    # below); base_coder's shared default of 3 is tuned for lint/test-fix
+    # loops that rarely chain more than 2-3 times, but a real tool-using
+    # agent turn often needs several sequential tool calls to complete one
+    # user request (e.g. list a directory, then read a file it found, then
+    # edit it). Raised here rather than for every coder.
+    max_reflections = 20
 
     def __init__(self, *args, mcp_manager=None, mcp_timeout=None, **kwargs):
         super().__init__(*args, **kwargs)
