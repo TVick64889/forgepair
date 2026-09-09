@@ -190,6 +190,27 @@ DEFERRED (tracked, not forgotten)
 
 ---
 
+## Phase 4 -- Approval-gated apply mode (2026-09-09)
+
+NEW
+- New `--confirm-edits` option. When turned on, ForgePair shows you
+  which file it's about to change and asks for a yes/no before writing
+  anything to disk -- one prompt per file, not per individual change,
+  so you're not click-through-fatigued on a big multi-file edit. Off
+  by default, so nothing changes unless you turn it on.
+- Works correctly in scripted/non-interactive use too: if you've also
+  set "always say yes" mode and nobody's there to answer the prompt,
+  an unconfirmed file's edit is safely skipped rather than either
+  silently applying anyway or hanging forever waiting for an answer
+  that will never come.
+
+REPAIRED
+- N/A this phase -- implemented directly against an existing, already
+  well-tested extension point in the codebase, no bugs found needing
+  a fix along the way.
+
+---
+
 ## Template for future entries
 
 ## Phase N -- <name> (date)
