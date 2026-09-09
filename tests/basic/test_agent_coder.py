@@ -93,9 +93,7 @@ class TestAgentCoderRoundTrip(unittest.TestCase):
             )
             for call_id, name, arguments in calls
         ]
-        message = types.SimpleNamespace(
-            content=None, tool_calls=tool_calls, reasoning_content=None
-        )
+        message = types.SimpleNamespace(content=None, tool_calls=tool_calls, reasoning_content=None)
         choice = types.SimpleNamespace(message=message, finish_reason="tool_calls")
         return types.SimpleNamespace(choices=[choice])
 
@@ -152,9 +150,7 @@ class TestAgentCoderRoundTrip(unittest.TestCase):
         self._managers_to_shutdown.append(coder.mcp_manager)
 
         responses = [
-            self._fake_tool_call_completion(
-                "mcp__echo-test__echo", {"message": "should not run"}
-            ),
+            self._fake_tool_call_completion("mcp__echo-test__echo", {"message": "should not run"}),
             self._fake_text_completion("Ok, I won't call the tool."),
         ]
         with patch.object(
@@ -223,9 +219,7 @@ class TestAgentCoderRoundTrip(unittest.TestCase):
         # ids, not just the last one, so the tool-result messages have a
         # matching parent to reference.
         assistant_tool_call_msgs = [
-            m
-            for m in coder.cur_messages
-            if m.get("role") == "assistant" and m.get("tool_calls")
+            m for m in coder.cur_messages if m.get("role") == "assistant" and m.get("tool_calls")
         ]
         self.assertEqual(len(assistant_tool_call_msgs), 1)
         recorded_ids = {tc["id"] for tc in assistant_tool_call_msgs[0]["tool_calls"]}

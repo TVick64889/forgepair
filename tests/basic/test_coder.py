@@ -1630,16 +1630,12 @@ class TestToolCallsCapture(unittest.TestCase):
             list(coder.send_message("hello"))
 
         self.assertTrue(coder.partial_response_tool_calls)
-        self.assertEqual(
-            coder.partial_response_tool_calls[0].function.name, "mcp__echo-test__echo"
-        )
+        self.assertEqual(coder.partial_response_tool_calls[0].function.name, "mcp__echo-test__echo")
 
     def test_streaming_tool_calls_captured_not_treated_as_empty(self):
         coder = self._make_coder(stream=True)
         chunks = iter(
-            self._fake_streaming_tool_call_chunks(
-                "mcp__echo-test__echo", ['{"message": ', '"hi"}']
-            )
+            self._fake_streaming_tool_call_chunks("mcp__echo-test__echo", ['{"message": ', '"hi"}'])
         )
         with patch.object(
             self.GPT35,

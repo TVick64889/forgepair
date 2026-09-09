@@ -132,9 +132,7 @@ class AgentCoder(Coder):
             explicit_yes_required=True,
         )
         if not approved:
-            self._append_tool_result(
-                tool_call, is_error=True, text="Tool call rejected by user."
-            )
+            self._append_tool_result(tool_call, is_error=True, text="Tool call rejected by user.")
             return
 
         try:

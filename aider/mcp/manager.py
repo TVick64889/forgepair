@@ -110,9 +110,7 @@ class MCPManager:
         try:
             return future.result(timeout=timeout or self.timeout)
         except asyncio.TimeoutError:
-            raise MCPConnectionError(
-                f"MCP operation timed out after {timeout or self.timeout}s"
-            )
+            raise MCPConnectionError(f"MCP operation timed out after {timeout or self.timeout}s")
 
     def shutdown(self):
         """Close all sessions/transports and stop the event loop. Safe to

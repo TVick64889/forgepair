@@ -103,9 +103,7 @@ class TestMCPConfig(unittest.TestCase):
             load_mcp_servers(git_root=None)
 
     def test_env_must_be_string_map(self):
-        write_mcp_json(
-            self.tmpdir / ".mcp.json", {"bad": {"command": "x", "env": {"KEY": 123}}}
-        )
+        write_mcp_json(self.tmpdir / ".mcp.json", {"bad": {"command": "x", "env": {"KEY": 123}}})
         with self.assertRaises(MCPConfigError):
             load_mcp_servers(git_root=None)
 

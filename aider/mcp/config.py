@@ -84,8 +84,7 @@ class MCPServerConfig:
 def _validate_server_entry(name, entry, source_file):
     if not isinstance(entry, dict):
         raise MCPConfigError(
-            f"mcpServers.{name} in {source_file} must be an object, got"
-            f" {type(entry).__name__}"
+            f"mcpServers.{name} in {source_file} must be an object, got {type(entry).__name__}"
         )
 
     has_command = "command" in entry
