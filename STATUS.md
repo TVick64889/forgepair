@@ -17,8 +17,18 @@ Updated as work happens, same policy as [CHANGES.md](CHANGES.md).
 All of SPEC.md's v1 "what to ship" priorities are complete, tested, and
 merged:
 
-- Governance infrastructure (tiered merge rights, CI-gated merge queue,
-  continuous release) -- proven with a real non-founder merge + release.
+- Governance infrastructure: branch protection + required status checks
+  (tests across 5 Python versions x 2 OSes, lint, Docker build) verified
+  as a real, working hard gate -- confirmed directly by attempting a
+  direct push (rejected) and running a real PR through the full flow to
+  merge. Continuous-release automation exists and correctly computes
+  next-version on every merge, but is intentionally still in dry-run
+  mode (no PyPI token configured yet). Tiered contributor categories are
+  documented in CONTRIBUTING.md. See "Known gaps" below for what's NOT
+  yet true about this (no merge queue configured, no second contributor
+  has ever used the tiered process, release automation not live) --
+  this was previously overstated here as fully proven; corrected after
+  a direct re-audit against BUILD_PLAN.md's own item-level exit criteria.
 - Issue/request triage redesign -- verified live against this repo.
 - Model-metadata fragility fixes (OpenRouter scraping replaced with
   the real API, hardcoded model lists auto-refreshed).
@@ -46,6 +56,20 @@ merged:
   litellm inspection): added local `model-metadata.json` entries for
   24 models the Copilot API currently serves that litellm doesn't yet
   have pricing/context-window data for.
+- Fork identity/branding fixed: `pyproject.toml`'s package name
+  (`aider-chat` -> `forgepair`, with a new `forgepair` CLI entry point
+  alongside the existing `aider` one so nothing breaks), and the
+  crash-reporter/Homepage URLs (were still pointing at upstream
+  `Aider-AI/aider`, meaning a real crash report would have been filed
+  against the wrong project). Found via a full item-by-item re-audit
+  of BUILD_PLAN.md's Phase 0 checklist against the actual repo state,
+  not assumed done from STATUS.md's earlier summary.
+- Resolved Phase 1's long-deferred `search_replace.py` cleanup item:
+  the two unused fuzzy-match strategies (`dmp_apply`,
+  `git_cherry_pick_sr_onto_so`) confirmed genuinely dead (no test
+  coverage, no live caller, already excluded from the debug/benchmark
+  harness's own default list) and removed, along with the now-orphaned
+  `map_patches()` helper.
 
 See [CHANGES.md](CHANGES.md) for the detailed, dated changelog of all
 of the above.
@@ -61,8 +85,27 @@ rediscovered.
 
 ### Governance / CI
 
-- **Docker Hub publishing is intentionally not configured by
-  default** (no ForgePair-maintained Docker Hub account exists, no
+- **No merge queue is actually configured.** Confirmed directly via
+  GitHub's API (`mergeQueue: null`). Branch protection/required checks
+  are real and enforced, but every merge to date has been the repo
+  owner clicking merge directly, not a queue processing an approved,
+  green PR automatically.
+- **No second contributor has ever used the tiered-merge process.**
+  Confirmed via the repo's collaborator list (one member). The tiered
+  categories are documented in CONTRIBUTING.md but have never actually
+  been exercised by anyone but the founder -- so the core claim of this
+  governance model (it doesn't bottleneck on one person) has evidence
+  for the CI-gate half, but not the "someone else actually merges
+  something" half.
+- **Continuous release is still dry-run.** `continuous-release.yml`
+  correctly computes what the next version would be on every merge,
+  but `DRY_RUN: "true"` and no `PYPI_API_TOKEN` secret means nothing
+  has ever actually auto-published. This is intentional (no real
+  package to publish yet, per the workflow's own comments) but is a
+  real gap against BUILD_PLAN.md Phase 2's stated exit criteria ("a
+  release auto-publishes from that merge"), which has not been met.
+- **Docker Hub publishing is intentionally not configured by default**
+  (no ForgePair-maintained Docker Hub account exists, no
   current user demand for a pullable image maintained by this
   project). `docker-build-test.yml` runs build-only on every PR so CI
   validates the Dockerfile without needing any Docker Hub credentials.
