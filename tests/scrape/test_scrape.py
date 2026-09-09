@@ -1,39 +1,31 @@
 import time
 import unittest
-from unittest.mock import MagicMock
+from unittest.mock import MagicMock, patch
 
 from aider.commands import Commands
 from aider.io import InputOutput
 from aider.scrape import Scraper
 
-# KNOWN ISSUE (tracked, not silently dropped -- see CHANGES.md and
-# BUILD_PLAN.md): several tests in this file assert that
-# Scraper.print_error is never called during a scrape/pandoc-install
-# flow. In CI (observed on both Ubuntu and Windows, Python 3.10
-# specifically so far), pypandoc.download_pandoc() intermittently fails
-# with "Invalid pandoc version latest." -- an error inside pypandoc's
-# own version-resolution against GitHub releases, not a bug in aider's
-# try_pandoc() (which correctly catches the failure and calls
-# print_error exactly as designed). The tests' assumption that pandoc
-# install always succeeds in CI is what's actually wrong here.
+# FORMERLY KNOWN ISSUE (see CHANGES.md and BUILD_PLAN.md): several
+# tests in this file assert that Scraper.print_error is never called
+# during a scrape/pandoc-install flow. In CI (observed on both Ubuntu
+# and Windows, Python 3.10 specifically), pypandoc.download_pandoc()
+# intermittently failed with "Invalid pandoc version latest." -- an
+# error inside pypandoc's own version-resolution against GitHub
+# releases, not a bug in aider's own try_pandoc() (which correctly
+# catches the failure and calls print_error exactly as designed).
 #
-# Skipped rather than fixed on branch protection's critical path
-# because these checks are now required to merge (see BUILD_PLAN.md
-# Phase 2), and a flaky external-dependency failure was blocking
-# unrelated PRs. Real fix options (not yet decided): pin/vendor a known
-# pandoc version instead of "latest", or mock pypandoc entirely in
-# these tests instead of hitting the real download path.
-PANDOC_DOWNLOAD_KNOWN_ISSUE = (
-    "Known flaky failure: pypandoc.download_pandoc() intermittently fails with "
-    "'Invalid pandoc version latest.' in CI (observed on Ubuntu and Windows, "
-    "Python 3.10). Not a bug in aider's own code -- see comment at top of this "
-    "file. Tracked in BUILD_PLAN.md, not silently skipped."
-)
+# Fixed by mocking pypandoc.get_pandoc_version() in every test that
+# exercises Scraper.try_pandoc(), so it always reports pandoc as
+# already installed and pypandoc.download_pandoc() -- the real,
+# network-dependent, flaky call -- is never reached. This decorator is
+# applied to each test below that needs it.
+mock_pandoc_installed = patch("aider.scrape.pypandoc.get_pandoc_version", return_value="3.1.9")
 
 
 class TestScrape(unittest.TestCase):
-    @unittest.skip(PANDOC_DOWNLOAD_KNOWN_ISSUE)
-    def test_scrape_self_signed_ssl(self):
+    @mock_pandoc_installed
+    def test_scrape_self_signed_ssl(self, mock_pandoc_version):
         def scrape_with_retries(scraper, url, max_retries=5, delay=0.5):
             for _ in range(max_retries):
                 result = scraper.scrape(url)
@@ -63,8 +55,8 @@ class TestScrape(unittest.TestCase):
         self.io = InputOutput(yes=True)
         self.commands = Commands(self.io, None)
 
-    @unittest.skip(PANDOC_DOWNLOAD_KNOWN_ISSUE)
-    def test_cmd_web_imports_playwright(self):
+    @mock_pandoc_installed
+    def test_cmd_web_imports_playwright(self, mock_pandoc_version):
         # Create a mock print_error function
         mock_print_error = MagicMock()
         self.commands.io.tool_error = mock_print_error
@@ -92,8 +84,8 @@ class TestScrape(unittest.TestCase):
         # Assert that print_error was never called
         mock_print_error.assert_not_called()
 
-    @unittest.skip(PANDOC_DOWNLOAD_KNOWN_ISSUE)
-    def test_scrape_actual_url_with_playwright(self):
+    @mock_pandoc_installed
+    def test_scrape_actual_url_with_playwright(self, mock_pandoc_version):
         # Create a Scraper instance with a mock print_error function
         mock_print_error = MagicMock()
         scraper = Scraper(print_error=mock_print_error, playwright_available=True)
@@ -108,8 +100,8 @@ class TestScrape(unittest.TestCase):
         # Assert that print_error was never called
         mock_print_error.assert_not_called()
 
-    @unittest.skip(PANDOC_DOWNLOAD_KNOWN_ISSUE)
-    def test_scraper_print_error_not_called(self):
+    @mock_pandoc_installed
+    def test_scraper_print_error_not_called(self, mock_pandoc_version):
         # Create a Scraper instance with a mock print_error function
         mock_print_error = MagicMock()
         scraper = Scraper(print_error=mock_print_error, verify_ssl=False)
@@ -122,8 +114,8 @@ class TestScrape(unittest.TestCase):
         # Assert that print_error was never called
         mock_print_error.assert_not_called()
 
-    @unittest.skip(PANDOC_DOWNLOAD_KNOWN_ISSUE)
-    def test_scrape_with_playwright_error_handling(self):
+    @mock_pandoc_installed
+    def test_scrape_with_playwright_error_handling(self, mock_pandoc_version):
         # Create a Scraper instance with a mock print_error function
         mock_print_error = MagicMock()
         scraper = Scraper(print_error=mock_print_error, playwright_available=True)
