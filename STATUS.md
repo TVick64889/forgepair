@@ -117,6 +117,39 @@ rediscovered.
 
 ### MCP (Model Context Protocol) client
 
+- **No startup check for orphaned MCP server subprocesses from a
+  previous session that died uncleanly (crash, SSH drop, SIGKILL).**
+  The SwitchCoder cleanup fix above only closes the gap while the
+  aider process itself stays alive -- it does nothing if the whole
+  process dies before any shutdown path (graceful or GC) runs. When
+  that happens, any live MCP server child processes are orphaned at
+  the OS level with nothing in aider's code to catch it, since
+  `MCPManager` registers no `atexit`/signal handler and spawns
+  children with no process-group/job-object isolation.
+  NOT FIXED YET. Proposed mechanical fix: PID tracking, not
+  command-line guessing. `MCPManager` writes a small per-server state
+  file (e.g. `.aider/mcp-pids.json`) recording the PID it spawned for
+  each configured server name on connect, and clears the entry on a
+  clean `shutdown()`. On next startup, before connecting, check for
+  leftover entries whose PID is still alive. Command-line matching
+  against `.mcp.json` alone was considered and rejected as the primary
+  signal -- too guessable (false positive if the user is legitimately
+  running that same command for something unrelated; false negative if
+  args differ slightly run-to-run); PID tracking is precise because
+  it's aider's own record, not an inference.
+  Runtime behavior for a detected leftover (agreed 2026-09, not yet
+  implemented): **warn, don't kill, by default.** Report the leftover
+  PID/command to the user as advice to look into it as an artifact of
+  a previous session. The one exception is when leaving it running
+  would prevent the *new* session from loading correctly (e.g. a
+  stdio server that can't be started twice, or a port/lock conflict
+  for an HTTP-transport server) -- only in that specific case does
+  aider kill the leftover process automatically, and only after a
+  PID-reuse sanity check (don't kill on PID match alone, since PIDs
+  can be recycled by an unrelated process between the crash and this
+  check -- verify the still-alive process's command/args still match
+  what was recorded before killing it).
+
 - ~~Only the "tools" primitive was implemented~~ -- FIXED. MCP's other
   two primitives, "resources" (readable data sources) and "prompts"
   (reusable prompt templates), are now supported: `MCPManager` discovers
