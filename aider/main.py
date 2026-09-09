@@ -211,7 +211,7 @@ def check_streamlit_install(io):
         io,
         "streamlit",
         "You need to install the aider browser feature",
-        ["aider-chat[browser]"],
+        ["forgepair[browser]"],
     )
 
 
