@@ -291,6 +291,22 @@ VERIFIED
 
 ---
 
+## Post-v1 -- Flaky pandoc-download tests fixed (2026-09-09)
+
+REPAIRED
+- The 5 tests in `tests/scrape/test_scrape.py` that had been skipped
+  since Phase 2 (blocking on `pypandoc.download_pandoc()`
+  intermittently failing on `"latest"` in CI) are un-skipped and
+  fixed. Root cause was `Scraper.try_pandoc()` falling through to the
+  real network download whenever pandoc wasn't already present on the
+  test runner. Fix: mock `pypandoc.get_pandoc_version()` in each
+  affected test so pandoc is reported as already installed, removing
+  the network-dependent download path entirely. Verified
+  `download_pandoc` is never called under the mock, and all 5 tests
+  (plus the other 5 in `tests/scrape/`) pass locally.
+
+---
+
 ## Template for future entries
 
 ## Phase N -- <name> (date)

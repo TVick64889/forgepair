@@ -49,14 +49,6 @@ rediscovered.
   CONTRIBUTING.md). Upgrading the pin properly would reformat a large
   amount of unrelated pre-existing code, so it needs its own isolated,
   reviewed PR rather than being bundled into other work.
-- **5 flaky pandoc-download tests** (`tests/scrape/test_scrape.py`)
-  are currently skipped, not fixed. Root cause is
-  `pypandoc.download_pandoc()` intermittently failing on `"latest"` in
-  CI -- not a bug in aider's own code (`try_pandoc()` in
-  `aider/scrape.py` already handles the failure correctly at runtime).
-  Real fix options are noted in the test file itself: pin/vendor a
-  known pandoc version instead of `"latest"`, or mock `pypandoc`
-  entirely instead of hitting the real download path in tests.
 - **`requirements/common-constraints.txt` pins `scipy==1.17.1`
   unconditionally**, which conflicts with `requirements/python-compat.in`'s
   Python-version-branched constraint (`scipy<1.16` for Python <3.11).
