@@ -34,7 +34,15 @@ jobs:
         python-version: ${{ matrix.python-version }}
 
     - name: Install system dependencies
+      # GitHub-hosted ubuntu runners pre-configure a google-chrome-stable
+      # apt source we never use (we only need libportaudio2). That repo
+      # has been intermittently serving a stale/mismatched package index
+      # (`Hash Sum mismatch` on Packages.gz), which fails `apt-get update`
+      # for the whole job even though nothing we install comes from it.
+      # Disable that unused source list before updating so this job's
+      # apt-get update can't be broken by an unrelated third-party repo.
       run: |
+        sudo rm -f /etc/apt/sources.list.d/google-chrome.list
         sudo apt-get update
         sudo apt-get install -y libportaudio2
 
