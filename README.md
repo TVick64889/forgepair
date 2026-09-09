@@ -37,6 +37,15 @@ src="https://img.shields.io/badge/🔄%20Singularity-88%25-e74c3c?style=flat-squ
 <!--[[[end]]]-->  
 </p>
 
+> **This is ForgePair**, a fork of [aider-AI/aider](https://github.com/Aider-AI/aider)
+> under different governance (see [SPEC.md](SPEC.md) for why). The
+> stats/badges above are inherited from upstream aider and reflect
+> *its* install base and history, not ForgePair's -- ForgePair is a
+> young fork with its own [CHANGES.md](CHANGES.md). See
+> **[STATUS.md](STATUS.md)** for what's done, what's known-incomplete,
+> and where to look for more detail before relying on this fork for
+> anything beyond experimentation.
+
 ## Features
 
 ### [Cloud and local LLMs](https://aider.chat/docs/llms.html)
