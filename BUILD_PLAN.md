@@ -82,6 +82,24 @@ ARCHITECTURE_REVIEW.md citations.
    `editblock_strategies`/`udiff_strategies` (§11.3). Either delete if
    truly dead, or add them to the live strategy chain with tests if
    they were a deliberate future improvement someone didn't finish.
+
+   DONE (re-audited and resolved 2026-09-09): re-confirmed neither
+   function had any test coverage, any caller outside each other, or
+   any caller outside the debug/benchmark harness at the bottom of the
+   file (`proc()`/`main()`) -- and even there, both were already
+   commented out of the harness's own default `strategies` list.
+   `dmp_apply` was also functionally superseded by `dmp_lines_apply`
+   (already in the live strategy chains) -- same diff-match-patch
+   approach, operating on lines instead of raw characters. Deleted
+   both, plus `map_patches()` (only ever called by `dmp_apply`, now
+   orphaned) and the now-stale references to both in `proc()`'s
+   `short_names`/`strategies` locals. Verified the debug/benchmark
+   harness (`proc()`) still runs correctly end-to-end after the
+   removal -- ran it directly against a real search/replace/original
+   fixture set, got real 'pass' results across all four preproc
+   variants of the remaining `dmp_lines_apply` strategy, not just an
+   import-time smoke check. Full search/replace-related test suite (29
+   tests) and pre-commit (isort/black/flake8/codespell) pass clean.
 6. Write the two confirmed missing test files (§11.7 gap list):
    `test_patch.py` for `patch_coder.py` (flagged as the highest-risk
    untested complex code in the whole codebase) and `test_report.py`

@@ -90,6 +90,24 @@ DEFERRED (tracked, not forgotten)
 
 ---
 
+## Phase 1 addendum -- fuzzy strategy cleanup resolved (2026-09-09)
+
+REMOVED
+- `dmp_apply` and `git_cherry_pick_sr_onto_so` in `search_replace.py`,
+  previously left as an open DEFERRED item from Phase 1 (see below),
+  re-audited and confirmed genuinely dead: no test coverage, no
+  caller outside each other, and no caller outside a debug/benchmark
+  harness where both were already commented out of that harness's own
+  default strategy list. `dmp_apply` was also functionally redundant
+  with `dmp_lines_apply` (the strategy already used in production),
+  same technique operating on lines instead of characters. Also
+  removed `map_patches()`, whose only caller was `dmp_apply` and was
+  now orphaned. Verified the debug/benchmark harness still runs
+  correctly end-to-end after removal against a real fixture set, not
+  just checked for import errors.
+
+---
+
 ## Phase 2 -- Governance (2026-09-08)
 
 NEW

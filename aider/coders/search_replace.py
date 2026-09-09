@@ -182,58 +182,7 @@ class RelativeIndenter:
 # patches are close to being located right.
 # Except when indentation has been changed by GPT.
 #
-# It would help to use the diff trick to build map_S_offset_to_O_offset().
-# Then update all the S offsets in the S->R patches to be O offsets.
-# Do we also need to update the R offsets?
-#
-# What if this gets funky/wrong?
-#
-
-
-def map_patches(texts, patches, debug):
-    search_text, replace_text, original_text = texts
-
-    dmp = diff_match_patch()
-    dmp.Diff_Timeout = 5
-
-    diff_s_o = dmp.diff_main(search_text, original_text)
-    # diff_r_s = dmp.diff_main(replace_text, search_text)
-
-    # dmp.diff_cleanupSemantic(diff_s_o)
-    # dmp.diff_cleanupEfficiency(diff_s_o)
-
-    if debug:
-        html = dmp.diff_prettyHtml(diff_s_o)
-        Path("tmp.html").write_text(html)
-
-        dump(len(search_text))
-        dump(len(original_text))
-
-    for patch in patches:
-        start1 = patch.start1
-        start2 = patch.start2
-
-        patch.start1 = dmp.diff_xIndex(diff_s_o, start1)
-        patch.start2 = dmp.diff_xIndex(diff_s_o, start2)
-
-        if debug:
-            print()
-            print(start1, repr(search_text[start1 : start1 + 50]))
-            print(patch.start1, repr(original_text[patch.start1 : patch.start1 + 50]))
-            print(patch.diffs)
-            print()
-
-    return patches
-
-
-example = """Left
-Left
-    4 in
-    4 in
-        8 in
-    4 in
-Left
-"""
+example = "Left\nLeft\n    4 in\n    4 in\n        8 in\n    4 in\nLeft\n"
 
 
 def relative_indent(texts):
@@ -255,75 +204,6 @@ def line_unpad(text):
     if set(text[:line_padding] + text[-line_padding:]) != set("\n"):
         return
     return text[line_padding:-line_padding]
-
-
-def dmp_apply(texts, remap=True):
-    debug = False
-    # debug = True
-
-    search_text, replace_text, original_text = texts
-
-    dmp = diff_match_patch()
-    dmp.Diff_Timeout = 5
-    # dmp.Diff_EditCost = 16
-
-    if remap:
-        dmp.Match_Threshold = 0.95
-        dmp.Match_Distance = 500
-        dmp.Match_MaxBits = 128
-        dmp.Patch_Margin = 32
-    else:
-        dmp.Match_Threshold = 0.5
-        dmp.Match_Distance = 100_000
-        dmp.Match_MaxBits = 32
-        dmp.Patch_Margin = 8
-
-    diff = dmp.diff_main(search_text, replace_text, None)
-    dmp.diff_cleanupSemantic(diff)
-    dmp.diff_cleanupEfficiency(diff)
-
-    patches = dmp.patch_make(search_text, diff)
-
-    if debug:
-        html = dmp.diff_prettyHtml(diff)
-        Path("tmp.search_replace_diff.html").write_text(html)
-
-        for d in diff:
-            print(d[0], repr(d[1]))
-
-        for patch in patches:
-            start1 = patch.start1
-            print()
-            print(start1, repr(search_text[start1 : start1 + 10]))
-            print(start1, repr(replace_text[start1 : start1 + 10]))
-            print(patch.diffs)
-
-        # dump(original_text)
-        # dump(search_text)
-
-    if remap:
-        patches = map_patches(texts, patches, debug)
-
-    patches_text = dmp.patch_toText(patches)
-
-    new_text, success = dmp.patch_apply(patches, original_text)
-
-    all_success = False not in success
-
-    if debug:
-        # dump(new_text)
-        print(patches_text)
-
-        # print(new_text)
-        dump(success)
-        dump(all_success)
-
-        # print(new_text)
-
-    if not all_success:
-        return
-
-    return new_text
 
 
 def lines_to_chars(lines, mapping):
@@ -482,45 +362,6 @@ def git_cherry_pick_osr_onto_o(texts):
         return new_text
 
 
-def git_cherry_pick_sr_onto_so(texts):
-    search_text, replace_text, original_text = texts
-
-    with GitTemporaryDirectory() as dname:
-        repo = git.Repo(dname)
-
-        fname = Path(dname) / "file.txt"
-
-        fname.write_text(search_text)
-        repo.git.add(str(fname))
-        repo.git.commit("-m", "search")
-        search_hash = repo.head.commit.hexsha
-
-        # make search->replace
-        fname.write_text(replace_text)
-        repo.git.add(str(fname))
-        repo.git.commit("-m", "replace")
-        replace_hash = repo.head.commit.hexsha
-
-        # go back to search,
-        repo.git.checkout(search_hash)
-
-        # make search->original
-        fname.write_text(original_text)
-        repo.git.add(str(fname))
-        repo.git.commit("-m", "original")
-
-        # cherry pick replace onto original
-        try:
-            repo.git.cherry_pick(replace_hash, "--minimal")
-        except (git.exc.ODBError, git.exc.GitError):
-            # merge conflicts!
-            return
-
-        new_text = fname.read_text()
-
-        return new_text
-
-
 class SearchTextNotUnique(ValueError):
     pass
 
@@ -636,16 +477,12 @@ def proc(dname):
     strategies = [
         # (search_and_replace, all_preprocs),
         # (git_cherry_pick_osr_onto_o, all_preprocs),
-        # (git_cherry_pick_sr_onto_so, all_preprocs),
-        # (dmp_apply, all_preprocs),
         (dmp_lines_apply, all_preprocs),
     ]
 
     short_names = dict(
         search_and_replace="sr",
         git_cherry_pick_osr_onto_o="cp_o",
-        git_cherry_pick_sr_onto_so="cp_so",
-        dmp_apply="dmp",
         dmp_lines_apply="dmpl",
     )
 

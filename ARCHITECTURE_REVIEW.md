@@ -666,10 +666,20 @@ investigation rather than static reading:
    clearly deliberate: they're referenced by a commented-out debug/
    benchmark harness (`proc()`/`short_names` at the bottom of the file)
    that itself has zero test coverage. Per explicit decision, this was
-   deferred rather than resolved unilaterally -- left as-is, to revisit
-   if/when someone actually touches search_replace.py for a feature.
-   Recorded here so the deferral is visible rather than silently
-   dropped.
+   deferred rather than resolved unilaterally at the time.
+
+   RESOLVED (2026-09-09): re-audited during a Phase-by-phase status
+   check and found genuinely dead per the criteria this item itself
+   set: no test coverage, no caller outside each other, and no caller
+   outside the debug/benchmark harness -- where both were ALREADY
+   commented out of the harness's own default strategy list, not just
+   absent from the live production chains. `dmp_apply` was also
+   functionally redundant with `dmp_lines_apply` (already live), same
+   technique operating on lines instead of characters. Deleted both,
+   plus `map_patches()` (only caller was `dmp_apply`, now orphaned).
+   Verified the debug harness still runs correctly end-to-end after
+   removal (real fixture set, real passing results), not just an
+   import-time check. See BUILD_PLAN.md Phase 1 item 5.
 
 See BUILD_PLAN.md Phase 1 for the full list of changes made and their
 verification (test suite results before/after each step).
