@@ -30,6 +30,7 @@ from aider.format_settings import format_settings, scrub_sensitive_info
 from aider.history import ChatSummary
 from aider.io import InputOutput
 from aider.llm import litellm  # noqa: F401; properly init litellm on launch
+from aider.mcp import MCPConfigError, load_mcp_servers
 from aider.models import ModelSettings
 from aider.onboarding import offer_openrouter_oauth, select_default_model
 from aider.repo import ANY_GIT_ERROR, GitRepo
@@ -585,6 +586,17 @@ def main(argv=None, input=None, output=None, force_git_root=None, return_coder=F
             raise err
         io = get_io(False)
         io.tool_warning("Terminal does not support pretty output (UnicodeDecodeError)")
+
+    try:
+        mcp_servers = load_mcp_servers(git_root, args.mcp_config_file)
+    except MCPConfigError as err:
+        io.tool_error(str(err))
+        return 1
+
+    if args.verbose and mcp_servers:
+        io.tool_output("Loaded MCP servers:")
+        for name, server in mcp_servers.items():
+            io.tool_output(f"  - {name} ({server.transport}) from {server.source_file}")
 
     # Process any environment variables set via --set-env
     if args.set_env:

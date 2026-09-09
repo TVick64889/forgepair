@@ -231,6 +231,66 @@ REPAIRED
 
 ---
 
+## Phase 6 -- MCP client support (2026-09-09)
+
+NEW
+- Native MCP (Model Context Protocol) client support via a new "agent"
+  mode (`--edit-format agent`). Declare MCP servers in a `.mcp.json`
+  file (same schema as Claude Code/Claude Desktop, so anyone who's
+  configured MCP for those tools will recognize it immediately) and
+  aider will connect to them, discover their tools, and let the model
+  call them mid-conversation -- reading files, running scripts,
+  querying external services, or anything else an MCP server exposes,
+  not just the built-in file-edit workflow.
+- Every MCP tool call requires explicit approval before it runs,
+  regardless of `--yes-always` or `--confirm-edits` -- MCP tools can
+  have side effects well beyond editing a file in your repo, so the
+  blast radius is less predictable and always gets a confirmation
+  prompt.
+- New `--mcp-config-file` flag to point at a specific `.mcp.json` file;
+  otherwise aider searches home directory, git root, and cwd (same
+  search order as `.aider.conf.yml`/`.env`), merging by server name
+  with the more specific file winning.
+- `${ENV_VAR}` interpolation in `.mcp.json` values (same syntax as
+  Claude Code/Claude Desktop), so a server requiring an API key or
+  auth token can be configured -- and the file safely committed --
+  without ever writing the secret itself into the file.
+
+IMPROVED
+- Fixed a real gap in the existing tool-calling plumbing: aider's
+  streaming response handler only ever read the older, deprecated
+  single-function-call shape from providers, never the current
+  multi-tool `tool_calls` shape -- so under the default `--stream`
+  mode, any response that used the modern tool-calling format was
+  silently dropped and misread as an empty/failed response. Fixed as
+  part of building MCP support, but benefits any future tool-calling
+  work, not just MCP.
+
+DEFERRED
+- MCP "resources" and "prompts" (only "tools" are implemented so far) --
+  a server that primarily exposes resources or prompt templates rather
+  than callable tools would connect successfully but show nothing
+  usable today.
+- Authentication/custom headers for remote HTTP MCP servers -- only
+  stdio (local subprocess) and unauthenticated HTTP servers can be
+  connected to; most real hosted MCP servers require a bearer token or
+  API key, which isn't wired up yet.
+- GitHub Copilot as a model provider, general non-MCP tool-calling,
+  IDE integration contract, and the remaining reproducible bug fixes
+  (SPEC.md §7 items 4-7) -- explicitly lower priority, tracked as
+  Phase 7.
+
+VERIFIED
+- Live demo run 2026-09-09: aider (--edit-format agent) against
+  @modelcontextprotocol/server-filesystem (a real, commonly-used MCP
+  server, 14 tools) and a real Anthropic model (claude-haiku-4-5),
+  real billed API calls. The model listed a directory, then
+  autonomously read a file it found there in a second sequential tool
+  call, each individually gated by a real approval prompt, both
+  results correctly fed back and reflected in its final answer.
+
+---
+
 ## Template for future entries
 
 ## Phase N -- <name> (date)

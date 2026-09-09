@@ -66,6 +66,28 @@ class TestSendChat(unittest.TestCase):
         called_kwargs = mock_completion.call_args.kwargs
         assert "tools" in called_kwargs
         assert called_kwargs["tools"][0]["function"] == mock_function
+        # Single function: still forced via tool_choice (existing behavior)
+        assert called_kwargs["tool_choice"] == {
+            "type": "function",
+            "function": {"name": "test_function"},
+        }
+
+    @patch("litellm.completion")
+    def test_send_completion_with_multiple_functions(self, mock_completion):
+        func_a = {"name": "func_a", "parameters": {"type": "object"}}
+        func_b = {"name": "func_b", "parameters": {"type": "object"}}
+
+        hash_obj, response = Model(self.mock_model).send_completion(
+            self.mock_messages, functions=[func_a, func_b], stream=False
+        )
+
+        called_kwargs = mock_completion.call_args.kwargs
+        assert "tools" in called_kwargs
+        assert len(called_kwargs["tools"]) == 2
+        assert called_kwargs["tools"][0]["function"] == func_a
+        assert called_kwargs["tools"][1]["function"] == func_b
+        # Multiple functions: model chooses, not forced to one
+        assert called_kwargs["tool_choice"] == "auto"
 
     @patch("litellm.completion")
     def test_simple_send_attribute_error(self, mock_completion):

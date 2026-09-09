@@ -1557,6 +1557,101 @@ class TestEmptyResponseHandling(unittest.TestCase):
         self.assertIn("no content", error_texts.lower())
 
 
+class TestToolCallsCapture(unittest.TestCase):
+    """
+    Regression tests for the Phase 6 fix to show_send_output_stream(): it
+    used to only read delta.function_call (the deprecated single-function
+    shape), never delta.tool_calls (the current shape used for e.g. MCP
+    tool routing) -- so under --stream (aider's default), a tool_calls-only
+    streamed response was silently dropped and (before the
+    EmptyResponseError check was also updated) would even have been
+    misdiagnosed as an empty response. Confirms both streaming and
+    non-streaming paths now populate partial_response_tool_calls.
+    """
+
+    def setUp(self):
+        self.GPT35 = Model("gpt-3.5-turbo")
+        self.io = InputOutput(yes=True)
+
+    def _make_coder(self, stream):
+        coder = Coder.create(
+            self.GPT35, "diff", io=self.io, fnames=[], stream=stream, use_git=False
+        )
+        coder.init_before_message()
+        return coder
+
+    def _fake_non_streaming_tool_call_completion(self, name, arguments):
+        function = types.SimpleNamespace(name=name, arguments=arguments)
+        tool_call = types.SimpleNamespace(id="call_1", type="function", function=function)
+        message = types.SimpleNamespace(
+            content=None, tool_calls=[tool_call], reasoning_content=None
+        )
+        choice = types.SimpleNamespace(message=message, finish_reason="tool_calls")
+        return types.SimpleNamespace(choices=[choice])
+
+    def _fake_streaming_tool_call_chunks(self, name, arg_pieces):
+        """Mimics litellm's streaming tool_calls shape: name arrives whole
+        on the first delta, arguments trickle in across later deltas, all
+        sharing the same tool_call index -- matching real provider streams."""
+        chunks = []
+        first_func = types.SimpleNamespace(name=name, arguments=None)
+        first_delta_tc = types.SimpleNamespace(index=0, id="call_1", function=first_func)
+        first_delta = types.SimpleNamespace(
+            content=None, reasoning_content=None, tool_calls=[first_delta_tc]
+        )
+        chunks.append(
+            types.SimpleNamespace(
+                choices=[types.SimpleNamespace(delta=first_delta, finish_reason=None)]
+            )
+        )
+        for piece in arg_pieces:
+            func = types.SimpleNamespace(name=None, arguments=piece)
+            delta_tc = types.SimpleNamespace(index=0, id=None, function=func)
+            delta = types.SimpleNamespace(
+                content=None, reasoning_content=None, tool_calls=[delta_tc]
+            )
+            chunks.append(
+                types.SimpleNamespace(
+                    choices=[types.SimpleNamespace(delta=delta, finish_reason=None)]
+                )
+            )
+        return chunks
+
+    def test_non_streaming_tool_calls_captured(self):
+        coder = self._make_coder(stream=False)
+        fake_completion = self._fake_non_streaming_tool_call_completion(
+            "mcp__echo-test__echo", '{"message": "hi"}'
+        )
+        with patch.object(
+            self.GPT35,
+            "send_completion",
+            return_value=(hashlib.sha1(b"x"), fake_completion),
+        ):
+            list(coder.send_message("hello"))
+
+        self.assertTrue(coder.partial_response_tool_calls)
+        self.assertEqual(coder.partial_response_tool_calls[0].function.name, "mcp__echo-test__echo")
+
+    def test_streaming_tool_calls_captured_not_treated_as_empty(self):
+        coder = self._make_coder(stream=True)
+        chunks = iter(
+            self._fake_streaming_tool_call_chunks("mcp__echo-test__echo", ['{"message": ', '"hi"}'])
+        )
+        with patch.object(
+            self.GPT35,
+            "send_completion",
+            return_value=(hashlib.sha1(b"x"), chunks),
+        ) as mock_send:
+            list(coder.send_message("hello"))
+
+        # Must NOT have been misdiagnosed as an EmptyResponseError and retried.
+        self.assertEqual(mock_send.call_count, 1, "a tool_calls-only response is not empty")
+        self.assertTrue(coder.partial_response_tool_calls)
+        tool_call = coder.partial_response_tool_calls[0]
+        self.assertEqual(tool_call.function.name, "mcp__echo-test__echo")
+        self.assertEqual(tool_call.function.arguments, '{"message": "hi"}')
+
+
 class TestConfirmEditsBeforeApply(unittest.TestCase):
     """
     Tests for Coder.confirm_edits_before_apply(), the Phase 4

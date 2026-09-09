@@ -815,6 +815,16 @@ def get_parser(default_config_files, git_root):
         help="Specify the .env file to load (default: .env in git root)",
     ).complete = shtab.FILE
     group.add_argument(
+        "--mcp-config-file",
+        metavar="MCP_CONFIG_FILE",
+        default=None,
+        help=(
+            "Specify an additional .mcp.json file declaring MCP servers (default: search"
+            " for .mcp.json in git root, cwd, or home directory; same mcpServers schema"
+            " used by Claude Code/Claude Desktop). Highest precedence if given."
+        ),
+    ).complete = shtab.FILE
+    group.add_argument(
         "--suggest-shell-commands",
         action=argparse.BooleanOptionalAction,
         default=True,

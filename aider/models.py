@@ -1105,10 +1105,21 @@ class Model(ModelSettings):
 
             kwargs["temperature"] = temperature
 
-        if functions is not None:
-            function = functions[0]
-            kwargs["tools"] = [dict(type="function", function=function)]
-            kwargs["tool_choice"] = {"type": "function", "function": {"name": function["name"]}}
+        if functions:
+            if len(functions) == 1:
+                # Single function: force the model to call it (existing behavior,
+                # used for structured-output-via-function-call edit formats).
+                function = functions[0]
+                kwargs["tools"] = [dict(type="function", function=function)]
+                kwargs["tool_choice"] = {
+                    "type": "function",
+                    "function": {"name": function["name"]},
+                }
+            else:
+                # Multiple functions (e.g. MCP-exposed tools): let the model pick
+                # which one to call, or none at all, rather than forcing one.
+                kwargs["tools"] = [dict(type="function", function=f) for f in functions]
+                kwargs["tool_choice"] = "auto"
         if self.extra_params:
             kwargs.update(self.extra_params)
         if self.is_ollama() and "num_ctx" not in kwargs:
