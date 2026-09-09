@@ -82,6 +82,24 @@ class EmptyResponseError(Exception):
     pass
 
 
+class _StreamedToolCall:
+    """Assembled from streamed delta.tool_calls chunks in
+    show_send_output_stream(), matching the shape of a non-streaming
+    completion.choices[0].message.tool_calls[i] entry (.id,
+    .function.name, .function.arguments) closely enough that both code
+    paths can be handled uniformly downstream (see AgentCoder)."""
+
+    def __init__(self, id, name, arguments):
+        self.id = id
+        self.function = _StreamedToolCallFunction(name=name, arguments=arguments)
+
+
+class _StreamedToolCallFunction:
+    def __init__(self, name, arguments):
+        self.name = name
+        self.arguments = arguments
+
+
 def wrap_fence(name):
     return f"<{name}>", f"</{name}>"
 
@@ -106,6 +124,7 @@ class Coder:
     last_asked_for_commit_time = 0
     repo_map = None
     functions = None
+    partial_response_tool_calls = None
     num_exhausted_context_windows = 0
     num_malformed_responses = 0
     last_keyboard_interrupt = None
@@ -1734,7 +1753,30 @@ class Coder:
     def add_assistant_reply_to_cur_messages(self):
         if self.partial_response_content:
             self.cur_messages += [dict(role="assistant", content=self.partial_response_content)]
-        if self.partial_response_function_call:
+        if self.partial_response_tool_calls:
+            # tool_calls (2+ / MCP-style) takes precedence over the legacy
+            # single function_call shape below -- partial_response_function_call
+            # is still populated alongside it (kept for parse_partial_args()
+            # backward-compat with non-agent edit formats), but emitting both
+            # would add two conflicting assistant messages for the same turn.
+            self.cur_messages += [
+                dict(
+                    role="assistant",
+                    content=None,
+                    tool_calls=[
+                        dict(
+                            id=tc.id,
+                            type="function",
+                            function=dict(
+                                name=tc.function.name,
+                                arguments=tc.function.arguments,
+                            ),
+                        )
+                        for tc in self.partial_response_tool_calls
+                    ],
+                )
+            ]
+        elif self.partial_response_function_call:
             self.cur_messages += [
                 dict(
                     role="assistant",
@@ -1821,6 +1863,7 @@ class Coder:
 
         self.partial_response_content = ""
         self.partial_response_function_call = dict()
+        self.partial_response_tool_calls = []
 
         self.io.log_llm_history("TO LLM", format_messages(messages))
 
@@ -1845,6 +1888,7 @@ class Coder:
             if (
                 not self.partial_response_content
                 and not self.partial_response_function_call
+                and not self.partial_response_tool_calls
                 and not self.got_reasoning_content
             ):
                 raise EmptyResponseError(
@@ -1894,6 +1938,7 @@ class Coder:
                 self.partial_response_function_call = (
                     completion.choices[0].message.tool_calls[0].function
                 )
+                self.partial_response_tool_calls = list(completion.choices[0].message.tool_calls)
         except AttributeError as func_err:
             show_func_err = func_err
 
@@ -1942,6 +1987,12 @@ class Coder:
 
     def show_send_output_stream(self, completion):
         received_content = False
+        # Accumulate streamed tool_calls (each chunk may carry the same index's
+        # name/arguments split across multiple deltas) keyed by index, since
+        # the OpenAI/litellm streaming shape sends partial args incrementally
+        # per tool_call rather than all at once. Converted to a list on
+        # add_assistant_reply_to_cur_messages()/parse_partial_args() use.
+        tool_call_chunks = {}
 
         for chunk in completion:
             if len(chunk.choices) == 0:
@@ -1962,6 +2013,26 @@ class Coder:
                     else:
                         self.partial_response_function_call[k] = v
                 received_content = True
+            except AttributeError:
+                pass
+
+            try:
+                deltas = chunk.choices[0].delta.tool_calls
+                if deltas:
+                    for delta in deltas:
+                        idx = getattr(delta, "index", 0) or 0
+                        entry = tool_call_chunks.setdefault(
+                            idx, {"id": None, "name": "", "arguments": ""}
+                        )
+                        if getattr(delta, "id", None):
+                            entry["id"] = delta.id
+                        delta_func = getattr(delta, "function", None)
+                        if delta_func is not None:
+                            if getattr(delta_func, "name", None):
+                                entry["name"] += delta_func.name
+                            if getattr(delta_func, "arguments", None):
+                                entry["arguments"] += delta_func.arguments
+                    received_content = True
             except AttributeError:
                 pass
 
@@ -2016,6 +2087,16 @@ class Coder:
 
         if not received_content:
             self.io.tool_warning("Empty response received from LLM. Check your provider account?")
+
+        if tool_call_chunks:
+            self.partial_response_tool_calls = [
+                _StreamedToolCall(
+                    id=entry["id"],
+                    name=entry["name"],
+                    arguments=entry["arguments"],
+                )
+                for entry in tool_call_chunks.values()
+            ]
 
     def live_incremental_response(self, final):
         show_resp = self.render_incremental_response(final)
