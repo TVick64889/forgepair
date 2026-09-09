@@ -763,6 +763,17 @@ def get_parser(default_config_files, git_root):
         default=None,
     )
     group.add_argument(
+        "--confirm-edits",
+        action=argparse.BooleanOptionalAction,
+        default=False,
+        help=(
+            "Require explicit confirmation before applying each file's edits (default: False)."
+            " Per-file granularity: shows the proposed changes and asks Yes/No/Skip-all before"
+            " writing to disk. With --yes-always and no interactive terminal, unconfirmed edits"
+            " are skipped rather than silently applied or hung waiting for input."
+        ),
+    )
+    group.add_argument(
         "-v",
         "--verbose",
         action="store_true",

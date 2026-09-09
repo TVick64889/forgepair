@@ -338,6 +338,7 @@ class Coder:
         file_watcher=None,
         auto_copy_context=False,
         auto_accept_architect=True,
+        confirm_edits=False,
     ):
         # Fill in a dummy Analytics if needed, but it is never .enable()'d
         self.analytics = analytics if analytics is not None else Analytics()
@@ -352,6 +353,7 @@ class Coder:
 
         self.auto_copy_context = auto_copy_context
         self.auto_accept_architect = auto_accept_architect
+        self.confirm_edits = confirm_edits
 
         self.ignore_mentions = ignore_mentions
         if not self.ignore_mentions:
@@ -2293,12 +2295,59 @@ class Coder:
 
         return res
 
+    def confirm_edits_before_apply(self, edits):
+        """
+        If self.confirm_edits is set, ask for explicit per-file approval
+        before any edit is applied, using the same io.confirm_ask idiom
+        used elsewhere in this file (e.g. handle_shell_commands).
+        Granularity is per-file, not per-hunk: prepare_to_edit/
+        allowed_to_edit already operate per-path, so this is the natural
+        first cut (see BUILD_PLAN.md Phase 4).
+
+        Returns the subset of edits belonging to approved files. With
+        explicit_yes_required=True, --yes-always (self.io.yes is True)
+        answers "no" rather than "yes" for this prompt specifically --
+        so in non-interactive mode, unconfirmed edits are skipped
+        (not silently applied, not hung waiting for input neither of
+        which will ever come).
+        """
+        if not self.confirm_edits:
+            return edits
+
+        paths_in_order = []
+        seen_paths = set()
+        for edit in edits:
+            path = edit[0]
+            if path is not None and path not in seen_paths:
+                seen_paths.add(path)
+                paths_in_order.append(path)
+
+        if not paths_in_order:
+            return edits
+
+        approved_paths = set()
+        group = ConfirmGroup(paths_in_order)
+        for path in paths_in_order:
+            if self.io.confirm_ask(
+                "Apply edits to this file?",
+                subject=path,
+                explicit_yes_required=True,
+                group=group,
+                allow_never=True,
+            ):
+                approved_paths.add(path)
+            else:
+                self.io.tool_output(f"Skipped edits to {path}")
+
+        return [edit for edit in edits if edit[0] is None or edit[0] in approved_paths]
+
     def apply_updates(self):
         edited = set()
         try:
             edits = self.get_edits()
             edits = self.apply_edits_dry_run(edits)
             edits = self.prepare_to_edit(edits)
+            edits = self.confirm_edits_before_apply(edits)
             edited = set(edit[0] for edit in edits)
 
             self.apply_edits(edits)

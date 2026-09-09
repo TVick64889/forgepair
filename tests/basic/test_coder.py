@@ -1436,3 +1436,132 @@ This command will print 'Hello, World!' to the console."""
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class TestConfirmEditsBeforeApply(unittest.TestCase):
+    """
+    Tests for Coder.confirm_edits_before_apply(), the Phase 4
+    approval-gated apply feature (see BUILD_PLAN.md Phase 4,
+    SPEC.md section 7 item 2 / issue #649). Confirms the flag is
+    opt-in (default off, existing behavior unchanged), approve/reject
+    per file, and that non-interactive mode (--yes-always) skips
+    unconfirmed edits rather than silently applying or hanging.
+    """
+
+    def setUp(self):
+        self.GPT35 = Model("gpt-3.5-turbo")
+
+    def _make_coder(self, confirm_edits, io_yes=None):
+        io = InputOutput(yes=io_yes)
+        coder = Coder.create(
+            self.GPT35,
+            "diff",
+            io=io,
+            fnames=[],
+            stream=False,
+            use_git=False,
+            confirm_edits=confirm_edits,
+        )
+        return coder
+
+    def test_disabled_by_default_edits_pass_through_unchanged(self):
+        coder = self._make_coder(confirm_edits=False)
+        edits = [("a.py", "old", "new"), ("b.py", "old2", "new2")]
+        result = coder.confirm_edits_before_apply(edits)
+        self.assertEqual(result, edits)
+
+    def test_approving_a_file_keeps_its_edits(self):
+        coder = self._make_coder(confirm_edits=True)
+        coder.io.confirm_ask = MagicMock(return_value=True)
+        edits = [("a.py", "old", "new")]
+        result = coder.confirm_edits_before_apply(edits)
+        self.assertEqual(result, edits)
+        coder.io.confirm_ask.assert_called_once()
+
+    def test_rejecting_a_file_drops_its_edits(self):
+        coder = self._make_coder(confirm_edits=True)
+        coder.io.confirm_ask = MagicMock(return_value=False)
+        edits = [("a.py", "old", "new")]
+        result = coder.confirm_edits_before_apply(edits)
+        self.assertEqual(result, [])
+
+    def test_per_file_granularity_approve_one_reject_other(self):
+        coder = self._make_coder(confirm_edits=True)
+        coder.io.confirm_ask = MagicMock(side_effect=[True, False])
+        edits = [("a.py", "old", "new"), ("b.py", "old2", "new2")]
+        result = coder.confirm_edits_before_apply(edits)
+        self.assertEqual(result, [("a.py", "old", "new")])
+
+    def test_multiple_edits_to_same_file_only_prompted_once(self):
+        coder = self._make_coder(confirm_edits=True)
+        coder.io.confirm_ask = MagicMock(return_value=True)
+        edits = [("a.py", "old1", "new1"), ("a.py", "old2", "new2")]
+        result = coder.confirm_edits_before_apply(edits)
+        self.assertEqual(result, edits)
+        self.assertEqual(coder.io.confirm_ask.call_count, 1)
+
+    def test_none_path_edits_shell_commands_pass_through(self):
+        # EditBlockCoder uses path=None for shell-command entries
+        # (see editblock_coder.py get_edits). These aren't file edits
+        # and shouldn't be gated by this feature.
+        coder = self._make_coder(confirm_edits=True)
+        coder.io.confirm_ask = MagicMock(return_value=False)
+        edits = [(None, "echo hi")]
+        result = coder.confirm_edits_before_apply(edits)
+        self.assertEqual(result, edits)
+        coder.io.confirm_ask.assert_not_called()
+
+    def test_no_edits_no_prompt(self):
+        coder = self._make_coder(confirm_edits=True)
+        coder.io.confirm_ask = MagicMock(return_value=True)
+        result = coder.confirm_edits_before_apply([])
+        self.assertEqual(result, [])
+        coder.io.confirm_ask.assert_not_called()
+
+    def test_non_interactive_yes_always_skips_unconfirmed_edits(self):
+        # --yes-always sets io.yes = True. confirm_ask uses
+        # explicit_yes_required=True for this prompt specifically, so
+        # io.yes=True should resolve to "no" (skip), not "yes" (apply)
+        # and not hang -- this is the non-interactive-mode behavior
+        # BUILD_PLAN.md Phase 4 item 4 requires.
+        coder = self._make_coder(confirm_edits=True, io_yes=True)
+        edits = [("a.py", "old", "new")]
+        result = coder.confirm_edits_before_apply(edits)
+        self.assertEqual(result, [])
+
+    def test_apply_updates_respects_confirm_edits_rejection(self):
+        # Integration test: a full apply_updates() call with
+        # confirm_edits=True and a rejected file should not write
+        # anything to disk.
+        with GitTemporaryDirectory():
+            fname = "foo.py"
+            with open(fname, "w") as f:
+                f.write("one\ntwo\nthree\n")
+
+            io = InputOutput(yes=None)
+            coder = Coder.create(
+                self.GPT35,
+                "diff",
+                io=io,
+                fnames=[fname],
+                stream=False,
+                use_git=False,
+                confirm_edits=True,
+            )
+            coder.io.confirm_ask = MagicMock(return_value=False)
+            coder.partial_response_content = (
+                "Here's the fix:\n\n"
+                "foo.py\n"
+                "```python\n"
+                "<<<<<<< SEARCH\n"
+                "two\n"
+                "=======\n"
+                "TWO\n"
+                ">>>>>>> REPLACE\n"
+                "```\n"
+            )
+            edited = coder.apply_updates()
+            self.assertEqual(edited, set())
+
+            with open(fname) as f:
+                self.assertEqual(f.read(), "one\ntwo\nthree\n")
