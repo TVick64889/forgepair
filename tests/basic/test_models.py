@@ -1,3 +1,5 @@
+import os
+import time
 import unittest
 from unittest.mock import ANY, MagicMock, patch
 
@@ -477,6 +479,162 @@ class TestModels(unittest.TestCase):
             timeout=600,
         )
         self.assertNotIn("num_ctx", mock_completion.call_args.kwargs)
+
+    def test_ollama_chat_actually_honors_timeout_real_server(self):
+        """
+        Regression test for the BUILD_PLAN.md Phase 7 investigation into
+        'ollama_chat ignores --timeout': the mocked tests above
+        (test_ollama_num_ctx_set_when_missing etc.) only prove aider passes
+        timeout=... into the litellm.completion() call -- they mock
+        litellm.completion itself, so they can't prove litellm's
+        ollama_chat provider actually RESPECTS that value once it gets
+        there. Confirmed via litellm issue BerriAI/litellm#8333
+        ("ollama_chat/ provider does not honor timeout", closed 2025-06-29)
+        that this was a real historical complaint. Re-verified 2026-09-09
+        against a real local ollama instance: timeout is honored correctly
+        on the current litellm pin. This test proves it with a real
+        (unmocked) request rather than just asserting it in a doc comment.
+
+        Skipped automatically if no local ollama server is reachable
+        (e.g. in CI, which doesn't run one) -- this is a real-server
+        integration check, not something to fake with a mock.
+        """
+        import socket
+
+        try:
+            with socket.create_connection(("localhost", 11434), timeout=1):
+                pass
+        except OSError:
+            self.skipTest("no local ollama server reachable on localhost:11434")
+
+        import subprocess
+
+        try:
+            tags = subprocess.run(["ollama", "list"], capture_output=True, text=True, timeout=5)
+        except (FileNotFoundError, subprocess.TimeoutExpired):
+            self.skipTest("ollama CLI not available to confirm a model is pulled")
+
+        # Use whatever model is actually available locally rather than
+        # hardcoding one that may not be pulled on the machine running this.
+        available = [
+            line.split()[0] for line in tags.stdout.strip().splitlines()[1:] if line.strip()
+        ]
+        if not available:
+            self.skipTest("no ollama models available locally to test against")
+        model_name = f"ollama_chat/{available[0]}"
+
+        model = Model(model_name)
+        start = time.time()
+        with patch("aider.models.request_timeout", 0.01):
+            with self.assertRaises(Exception) as ctx:
+                model.send_completion(
+                    messages=[{"role": "user", "content": "hi"}],
+                    functions=None,
+                    stream=False,
+                    temperature=None,
+                )
+        elapsed = time.time() - start
+
+        # The real assertion: this must be a real Timeout, and it must
+        # have actually cut the request short -- not silently ignored the
+        # value and waited for a real response (an absurdly short 0.01s
+        # timeout leaves no realistic way for a real generation to
+        # complete first, regardless of which model/hardware runs this).
+        self.assertIn("timeout", str(ctx.exception).lower())
+        self.assertLess(
+            elapsed,
+            10,
+            (
+                "timeout does not appear to have been honored -- request ran"
+                f" for {elapsed:.1f}s instead of cutting off quickly"
+            ),
+        )
+
+    def test_is_github_copilot_native(self):
+        with (
+            patch("aider.models.litellm.get_model_info", return_value={}),
+            patch(
+                "aider.models.litellm.validate_environment",
+                return_value={"keys_in_environment": True, "missing_keys": []},
+            ),
+        ):
+            self.assertTrue(Model("github_copilot/gpt-4o").is_github_copilot_native())
+        self.assertFalse(Model("gpt-4o").is_github_copilot_native())
+        self.assertFalse(Model("openai/gpt-4o").is_github_copilot_native())
+        self.assertFalse(Model("ollama/llama3").is_github_copilot_native())
+
+    def _make_github_copilot_model(self):
+        """
+        Constructing Model("github_copilot/...") calls BOTH
+        litellm.get_model_info() (via ModelInfoManager) AND
+        litellm.validate_environment() (via Model.validate_environment,
+        since "github_copilot" isn't in fast_validate_environment's
+        keymap so it always falls through to the slow litellm-backed
+        path) -- both of those specific litellm calls were confirmed
+        during Phase 7 scoping to trigger a REAL live GitHub OAuth
+        device-flow login for github_copilot/* models, not just look up
+        static metadata. Left unmocked, instantiating this model in a
+        test hangs waiting for a real interactive device-code approval
+        (confirmed the hard way: an earlier version of this test only
+        mocked get_model_info and still hung on validate_environment,
+        and had to be killed via taskkill). Mock both so Model()
+        construction never touches the network or the real
+        Authenticator at all.
+        """
+        with (
+            patch("aider.models.litellm.get_model_info", return_value={}),
+            patch(
+                "aider.models.litellm.validate_environment",
+                return_value={"keys_in_environment": True, "missing_keys": []},
+            ),
+        ):
+            return Model("github_copilot/gpt-4o")
+
+    @patch("aider.models.litellm.completion")
+    def test_github_copilot_native_gets_required_headers_by_default(self, mock_completion):
+        """
+        Phase 7 item 1 (BUILD_PLAN.md): litellm's native github_copilot/
+        provider (its own OAuth device-flow login, confirmed real and
+        working directly against GitHub's API during Phase 7 scoping)
+        still requires the same Editor-Version/Copilot-Integration-Id
+        headers Copilot's API has always required -- previously these were
+        only auto-added for the OLD GITHUB_COPILOT_TOKEN manual-workaround
+        path, leaving native-provider users to hand-add them via
+        model-settings.yml. Confirms they're now a default for
+        github_copilot/ models too, without needing GITHUB_COPILOT_TOKEN
+        set at all (litellm's native provider doesn't use that env var).
+        """
+        self.assertNotIn("GITHUB_COPILOT_TOKEN", os.environ)
+
+        model = self._make_github_copilot_model()
+        messages = [{"role": "user", "content": "Hello"}]
+        model.send_completion(messages, functions=None, stream=False)
+
+        called_kwargs = mock_completion.call_args.kwargs
+        self.assertIn("extra_headers", called_kwargs)
+        self.assertEqual(called_kwargs["extra_headers"]["Copilot-Integration-Id"], "vscode-chat")
+        self.assertIn("Editor-Version", called_kwargs["extra_headers"])
+
+    @patch("aider.models.litellm.completion")
+    def test_github_copilot_native_respects_explicit_extra_headers(self, mock_completion):
+        """A user-configured extra_headers (e.g. via model-settings.yml)
+        must not be silently overwritten by the new default above."""
+        model = self._make_github_copilot_model()
+        model.extra_params = {"extra_headers": {"Custom-Header": "custom-value"}}
+        messages = [{"role": "user", "content": "Hello"}]
+        model.send_completion(messages, functions=None, stream=False)
+
+        called_kwargs = mock_completion.call_args.kwargs
+        self.assertEqual(called_kwargs["extra_headers"], {"Custom-Header": "custom-value"})
+
+    @patch("aider.models.litellm.completion")
+    def test_non_copilot_model_gets_no_copilot_headers(self, mock_completion):
+        model = Model("gpt-4o")
+        messages = [{"role": "user", "content": "Hello"}]
+        model.send_completion(messages, functions=None, stream=False)
+
+        called_kwargs = mock_completion.call_args.kwargs
+        self.assertNotIn("extra_headers", called_kwargs)
 
     def test_use_temperature_settings(self):
         # Test use_temperature=True (default) uses temperature=0
