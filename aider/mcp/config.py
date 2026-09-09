@@ -3,6 +3,9 @@
 Config file: `.mcp.json`, using the same key/shape as Claude Code and Claude
 Desktop (`mcpServers: {name: {command, args, env} | {url}}`) so the format is
 already familiar to anyone who has configured MCP servers for those tools.
+Also matches those tools' `${ENV_VAR}` interpolation syntax in command/args/
+env/url values, so a committed .mcp.json never needs to contain a literal
+secret (see _interpolate_env_vars).
 
 Search order mirrors `.aider.conf.yml` / `.env` (see
 `aider.main.generate_search_path_list`): homedir, then git root, then cwd,
@@ -14,6 +17,8 @@ semantics of aider's existing layered config files.
 """
 
 import json
+import os
+import re
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Dict, List, Optional
@@ -21,6 +26,38 @@ from typing import Dict, List, Optional
 
 class MCPConfigError(ValueError):
     """Raised when an .mcp.json file is malformed or fails schema validation."""
+
+
+_ENV_VAR_PATTERN = re.compile(r"\$\{([A-Za-z_][A-Za-z0-9_]*)\}")
+
+
+def _interpolate_env_vars(value, field_name, source_file):
+    """Replace ${VAR_NAME} references in a string with os.environ[VAR_NAME].
+
+    Matches Claude Code/Claude Desktop's .mcp.json interpolation syntax, so
+    a server requiring a bearer token or API key can be configured (and the
+    .mcp.json file safely committed) without ever writing the secret value
+    into the file itself -- e.g. "env": {"API_KEY": "${MY_SERVICE_API_KEY}"}.
+
+    Fails loud (MCPConfigError) rather than silently substituting an empty
+    string or leaving the literal "${VAR}" in place if the referenced
+    variable isn't set -- a half-configured auth header that connects but
+    silently fails (or sends a literal "${TOKEN}" string as a credential)
+    is a worse failure mode than refusing to start.
+    """
+    if not isinstance(value, str) or "${" not in value:
+        return value
+
+    def _replace(match):
+        var_name = match.group(1)
+        if var_name not in os.environ:
+            raise MCPConfigError(
+                f"{field_name} in {source_file} references ${{{var_name}}}, but"
+                f" the {var_name} environment variable is not set"
+            )
+        return os.environ[var_name]
+
+    return _ENV_VAR_PATTERN.sub(_replace, value)
 
 
 @dataclass
@@ -81,12 +118,30 @@ def _validate_server_entry(name, entry, source_file):
     if has_url and not isinstance(entry["url"], str):
         raise MCPConfigError(f"mcpServers.{name}.url in {source_file} must be a string")
 
+    command = entry.get("command")
+    if command is not None:
+        command = _interpolate_env_vars(command, f"mcpServers.{name}.command", source_file)
+
+    interpolated_args = [
+        _interpolate_env_vars(a, f"mcpServers.{name}.args[{i}]", source_file)
+        for i, a in enumerate(args)
+    ]
+
+    interpolated_env = {
+        k: _interpolate_env_vars(v, f"mcpServers.{name}.env.{k}", source_file)
+        for k, v in env.items()
+    }
+
+    url = entry.get("url")
+    if url is not None:
+        url = _interpolate_env_vars(url, f"mcpServers.{name}.url", source_file)
+
     return MCPServerConfig(
         name=name,
-        command=entry.get("command"),
-        args=list(args),
-        env=dict(env),
-        url=entry.get("url"),
+        command=command,
+        args=interpolated_args,
+        env=interpolated_env,
+        url=url,
         source_file=source_file,
     )
 
