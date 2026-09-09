@@ -16,6 +16,7 @@ import threading
 from dataclasses import dataclass
 from typing import Dict, List, Optional
 
+import httpx
 from mcp import ClientSession
 from mcp.client.stdio import StdioServerParameters, stdio_client
 from mcp.client.streamable_http import streamable_http_client
@@ -195,35 +196,58 @@ class MCPManager:
                     command=server.command, args=server.args, env=server.env or None
                 )
                 transport_cm = stdio_client(params)
+                async with transport_cm as transport_streams:
+                    await self._run_session(name, transport_streams, ready)
             else:
-                transport_cm = streamable_http_client(server.url)
-
-            async with transport_cm as transport_streams:
-                read, write = transport_streams[0], transport_streams[1]
-                async with ClientSession(read, write) as session:
-                    await session.initialize()
-                    self._sessions[name] = session
-                    try:
-                        result = await session.list_tools()
-                        self._tools_by_server[name] = [
-                            MCPTool(
-                                server_name=name,
-                                name=t.name,
-                                description=t.description,
-                                input_schema=t.inputSchema,
-                            )
-                            for t in result.tools
-                        ]
-                    except Exception as err:  # noqa: BLE001
-                        self._connect_errors[name] = f"connected but list_tools failed: {err}"
-
-                    ready.set()
-                    await self._shutdown_event.wait()
+                # A custom httpx.AsyncClient with default headers is how
+                # streamable_http_client supports authenticated remote
+                # servers (bearer tokens, API keys, etc. via server.headers
+                # in .mcp.json) -- it has no separate headers= param of its
+                # own. Only bother constructing one when headers are
+                # actually configured; an unauthenticated server keeps using
+                # the library's own default client.
+                if server.headers:
+                    async with httpx.AsyncClient(headers=server.headers) as http_client:
+                        async with streamable_http_client(
+                            server.url, http_client=http_client
+                        ) as transport_streams:
+                            await self._run_session(name, transport_streams, ready)
+                else:
+                    async with streamable_http_client(server.url) as transport_streams:
+                        await self._run_session(name, transport_streams, ready)
         except Exception as err:  # noqa: BLE001 - any transport/protocol failure
             self._connect_errors.setdefault(name, str(err))
             ready.set()
         finally:
             self._sessions.pop(name, None)
+
+    async def _run_session(self, name, transport_streams, ready):
+        """Open the ClientSession over an already-connected transport,
+        discover tools, then hold the session open until shutdown -- shared
+        by both the stdio and HTTP branches of _server_lifetime so the
+        auth-aware httpx.AsyncClient wiring doesn't have to duplicate the
+        session/list_tools/ready logic.
+        """
+        read, write = transport_streams[0], transport_streams[1]
+        async with ClientSession(read, write) as session:
+            await session.initialize()
+            self._sessions[name] = session
+            try:
+                result = await session.list_tools()
+                self._tools_by_server[name] = [
+                    MCPTool(
+                        server_name=name,
+                        name=t.name,
+                        description=t.description,
+                        input_schema=t.inputSchema,
+                    )
+                    for t in result.tools
+                ]
+            except Exception as err:  # noqa: BLE001
+                self._connect_errors[name] = f"connected but list_tools failed: {err}"
+
+            ready.set()
+            await self._shutdown_event.wait()
 
     # -- tool calls --------------------------------------------------------
 

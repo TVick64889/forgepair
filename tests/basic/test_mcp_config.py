@@ -107,6 +107,40 @@ class TestMCPConfig(unittest.TestCase):
         with self.assertRaises(MCPConfigError):
             load_mcp_servers(git_root=None)
 
+    def test_load_http_server_with_headers(self):
+        write_mcp_json(
+            self.tmpdir / ".mcp.json",
+            {
+                "remote": {
+                    "url": "https://example.com/mcp",
+                    "headers": {"Authorization": "Bearer abc123"},
+                }
+            },
+        )
+        servers = load_mcp_servers(git_root=None)
+        self.assertEqual(servers["remote"].headers, {"Authorization": "Bearer abc123"})
+
+    def test_headers_must_be_string_map(self):
+        write_mcp_json(
+            self.tmpdir / ".mcp.json",
+            {"bad": {"url": "https://example.com", "headers": {"X-Key": 123}}},
+        )
+        with self.assertRaises(MCPConfigError):
+            load_mcp_servers(git_root=None)
+
+    def test_headers_on_stdio_server_is_error(self):
+        write_mcp_json(
+            self.tmpdir / ".mcp.json",
+            {"bad": {"command": "x", "headers": {"Authorization": "Bearer abc"}}},
+        )
+        with self.assertRaises(MCPConfigError):
+            load_mcp_servers(git_root=None)
+
+    def test_http_server_without_headers_defaults_to_empty(self):
+        write_mcp_json(self.tmpdir / ".mcp.json", {"remote": {"url": "https://example.com/mcp"}})
+        servers = load_mcp_servers(git_root=None)
+        self.assertEqual(servers["remote"].headers, {})
+
     def test_git_root_and_cwd_merge_with_cwd_precedence(self):
         git_root = self.tmpdir / "repo"
         git_root.mkdir()
@@ -203,6 +237,20 @@ class TestMCPConfigEnvVarInterpolation(unittest.TestCase):
         )
         servers = load_mcp_servers(git_root=None)
         self.assertEqual(servers["remote"].url, "https://example.com/mcp?token=abc")
+
+    def test_env_value_interpolated_into_headers(self):
+        self.set_env("FORGEPAIR_TEST_TOKEN", "sekret-456")
+        write_mcp_json(
+            self.tmpdir / ".mcp.json",
+            {
+                "remote": {
+                    "url": "https://example.com/mcp",
+                    "headers": {"Authorization": "Bearer ${FORGEPAIR_TEST_TOKEN}"},
+                }
+            },
+        )
+        servers = load_mcp_servers(git_root=None)
+        self.assertEqual(servers["remote"].headers["Authorization"], "Bearer sekret-456")
 
     def test_env_value_interpolated_into_command_and_args(self):
         self.set_env("FORGEPAIR_TEST_BIN", "real-binary")
