@@ -1033,6 +1033,17 @@ class Model(ModelSettings):
     def is_ollama(self):
         return self.name.startswith("ollama/") or self.name.startswith("ollama_chat/")
 
+    def is_github_copilot_native(self):
+        """True for litellm's native github_copilot/ provider (as opposed
+        to the older manual OPENAI_API_BASE+GITHUB_COPILOT_TOKEN workaround
+        handled by github_copilot_token_to_open_ai_key below). litellm's
+        native provider does its own OAuth device-flow login and token
+        refresh; it still needs the Editor-Version/Copilot-Integration-Id
+        headers Copilot's API requires, same as the old path, but users
+        of the native provider shouldn't have to hand-configure those via
+        model-settings.yml just to get a working connection."""
+        return self.name.startswith("github_copilot/")
+
     def github_copilot_token_to_open_ai_key(self, extra_headers):
         # check to see if there's an openai api key
         # If so, check to see if it's expire
@@ -1145,6 +1156,19 @@ class Model(ModelSettings):
                 }
 
             self.github_copilot_token_to_open_ai_key(kwargs["extra_headers"])
+        elif self.is_github_copilot_native():
+            # litellm's native github_copilot/ provider handles its own
+            # OAuth device-flow login/token-refresh -- it doesn't need
+            # github_copilot_token_to_open_ai_key's manual token exchange
+            # above, but Copilot's API still requires these two headers
+            # regardless of which auth path got us there.
+            kwargs.setdefault(
+                "extra_headers",
+                {
+                    "Editor-Version": f"aider/{__version__}",
+                    "Copilot-Integration-Id": "vscode-chat",
+                },
+            )
 
         res = litellm.completion(**kwargs)
         return hash_object, res
