@@ -13,6 +13,20 @@ name: Continuous Release
 # pushes) uses PyPI Trusted Publishing (OIDC) -- no PYPI_API_TOKEN
 # secret is stored in this repo. See release.yml for that flow.
 #
+# TAG-PUSH AUTH: the default GITHUB_TOKEN can't push the version tag
+# below -- confirmed 2026-09-10 that every merge since the org transfer
+# (PR #37 onward) failed with a 403 on "git push origin vX.Y.Z", because
+# the forgepair org has Actions default workflow permissions locked to
+# read-only, and this can't be overridden at the repo level (attempted
+# via API, got "Write permissions for workflows are disabled by the
+# organization"). The org's own Settings > Actions > General toggle for
+# this is greyed out even for an org owner -- likely a new/unverified-org
+# restriction GitHub applies, not a misconfiguration. Workaround: checkout
+# uses a fine-grained PAT (RELEASE_PAT secret, Contents: Read and write,
+# scoped only to this repo) instead of the default token, so the
+# subsequent `git push` authenticates with that instead. If the org
+# restriction is ever lifted, this can revert to the default token.
+#
 # Version bump policy: patch bump on every merge to main. This is the
 # aider-established policy already used by setuptools_scm (see
 # pyproject.toml) -- ForgePair keeps it rather than inventing
@@ -40,6 +54,7 @@ jobs:
         uses: actions/checkout@v4
         with:
           fetch-depth: 0 # need full history + tags for version computation
+          token: ${{ secrets.RELEASE_PAT }} # see note on tag-push step below
 
       - name: Compute next version
         id: next_version
