@@ -34,7 +34,7 @@ class TestPackagingIdentity(unittest.TestCase):
             match, "could not find [project.urls] Homepage = ... in pyproject.toml"
         )
         homepage = match.group(1)
-        self.assertIn("TVick64889/forgepair", homepage)
+        self.assertIn("forgepair/forgepair", homepage)
         self.assertNotIn("Aider-AI/aider", homepage)
 
     def test_both_aider_and_forgepair_cli_entry_points_exist(self):

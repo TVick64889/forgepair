@@ -21,7 +21,7 @@ def install_from_main_branch(io):
         io,
         None,
         "Install the development version of aider from the main branch?",
-        ["git+https://github.com/TVick64889/forgepair.git"],
+        ["git+https://github.com/forgepair/forgepair.git"],
         self_update=True,
     )
 

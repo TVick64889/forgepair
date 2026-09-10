@@ -61,7 +61,7 @@ load_dotenv()
 
 BOT_SUFFIX = """
 
-Note: [A bot script](https://github.com/TVick64889/forgepair/blob/main/scripts/issues.py) made these updates to the issue.
+Note: [A bot script](https://github.com/forgepair/forgepair/blob/main/scripts/issues.py) made these updates to the issue.
 """  # noqa
 
 STALE_COMMENT = (
@@ -115,7 +115,7 @@ Flagging for maintainer triage to check whether these should be consolidated."""
 
 # GitHub API configuration
 GITHUB_API_URL = "https://api.github.com"
-REPO_OWNER = os.getenv("GITHUB_REPOSITORY_OWNER", "TVick64889")
+REPO_OWNER = os.getenv("GITHUB_REPOSITORY_OWNER", "forgepair")
 REPO_NAME = os.getenv("GITHUB_REPOSITORY_NAME", "forgepair")
 TOKEN = os.getenv("GITHUB_TOKEN")
 

@@ -5,7 +5,15 @@ name: PyPI Release
 # this workflow run directly by its GitHub identity (repo + workflow
 # file name), verified against the pending publisher registered at
 # https://pypi.org/manage/account/publishing/ for the `forgepair`
-# project (owner TVick64889, repo forgepair, workflow release.yml).
+# project (owner forgepair, repo forgepair, workflow release.yml).
+# NOTE: the repo transferred from the personal TVick64889 account to
+# the forgepair org on 2026-09-10, AFTER the v1.0.0 release that used
+# this workflow succeeded under the old owner. PyPI's Trusted Publisher
+# config binds to the exact GitHub owner/repo/workflow identity -- if
+# it wasn't updated to owner=forgepair after the transfer, the next
+# publish will fail with an OIDC identity mismatch. Verify at
+# https://pypi.org/manage/project/forgepair/settings/publishing/
+# before relying on the next merge to auto-publish.
 
 on:
   workflow_dispatch:

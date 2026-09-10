@@ -35,7 +35,7 @@ def make_issue(number, title, body="", state="open", labels=None):
         "body": body,
         "state": state,
         "labels": [{"name": name} for name in labels or []],
-        "html_url": f"https://github.com/TVick64889/forgepair/issues/{number}",
+        "html_url": f"https://github.com/forgepair/forgepair/issues/{number}",
     }
 
 
