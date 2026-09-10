@@ -117,38 +117,45 @@ rediscovered.
 
 ### MCP (Model Context Protocol) client
 
-- **No startup check for orphaned MCP server subprocesses from a
-  previous session that died uncleanly (crash, SSH drop, SIGKILL).**
-  The SwitchCoder cleanup fix above only closes the gap while the
-  aider process itself stays alive -- it does nothing if the whole
-  process dies before any shutdown path (graceful or GC) runs. When
-  that happens, any live MCP server child processes are orphaned at
-  the OS level with nothing in aider's code to catch it, since
-  `MCPManager` registers no `atexit`/signal handler and spawns
-  children with no process-group/job-object isolation.
-  NOT FIXED YET. Proposed mechanical fix: PID tracking, not
-  command-line guessing. `MCPManager` writes a small per-server state
-  file (e.g. `.aider/mcp-pids.json`) recording the PID it spawned for
-  each configured server name on connect, and clears the entry on a
-  clean `shutdown()`. On next startup, before connecting, check for
-  leftover entries whose PID is still alive. Command-line matching
-  against `.mcp.json` alone was considered and rejected as the primary
-  signal -- too guessable (false positive if the user is legitimately
-  running that same command for something unrelated; false negative if
-  args differ slightly run-to-run); PID tracking is precise because
-  it's aider's own record, not an inference.
-  Runtime behavior for a detected leftover (agreed 2026-09, not yet
-  implemented): **warn, don't kill, by default.** Report the leftover
-  PID/command to the user as advice to look into it as an artifact of
-  a previous session. The one exception is when leaving it running
-  would prevent the *new* session from loading correctly (e.g. a
-  stdio server that can't be started twice, or a port/lock conflict
-  for an HTTP-transport server) -- only in that specific case does
-  aider kill the leftover process automatically, and only after a
-  PID-reuse sanity check (don't kill on PID match alone, since PIDs
-  can be recycled by an unrelated process between the crash and this
-  check -- verify the still-alive process's command/args still match
-  what was recorded before killing it).
+- ~~No startup check for orphaned MCP server subprocesses from a
+  previous session that died uncleanly (crash, SSH drop, SIGKILL)~~ --
+  FIXED. The SwitchCoder cleanup fix above only closes the gap while the
+  aider process itself stays alive; this closes the separate gap where
+  the whole process dies before any shutdown path runs. Implemented as
+  PID tracking, not command-line guessing: `MCPManager` now records the
+  PID of every stdio server subprocess it spawns to a per-project JSON
+  file (`.aider.mcp-pids.json`, next to the `.mcp.json` it came from;
+  covered by `.gitignore`'s `.aider*` pattern), tagged with the
+  command/args and the spawning aider process's own PID, and clears its
+  own entries on a clean `shutdown()`. `connect_all()` now calls
+  `check_for_leftover_processes()` first, which reports (via
+  `leftover_processes`) any entry whose PID is still alive AND whose
+  live process's command/args still match what was recorded (the
+  PID-reuse guard -- a bare "PID exists" check isn't enough, since the
+  OS recycles PIDs for unrelated processes over time). `AgentCoder`
+  warns about each one found (advising the user to look into it as an
+  artifact of a session that didn't shut down cleanly) but does not
+  kill it -- warn-by-default, per the agreed runtime policy. The one
+  exception: if a server's own fresh connect attempt actually fails
+  while a leftover is recorded under that exact server name (evidence
+  the leftover -- e.g. holding a single-instance lock or a port -- is
+  what's blocking the new one from loading), `MCPManager` re-verifies
+  the leftover one more time immediately before acting, kills it, and
+  retries that server's connect once; `AgentCoder` reports this case
+  louder/differently (terminated automatically, not just advised).
+  Verified with real subprocess tests (no mocking of the detection or
+  kill logic): a real MCP server process is spawned, the manager is
+  discarded without calling `shutdown()` (simulating an unclean
+  process death) while the spawned process is left running, and a
+  fresh `MCPManager` against the same pid_file correctly detects it;
+  separately, a real single-instance-only stdio server fixture proves
+  the full kill-if-blocking path end-to-end (leftover holds the lock,
+  fresh connect fails, leftover is killed, retry succeeds). Also
+  covered: a dead PID (fully exited, not orphaned) is correctly not
+  reported, and a PID reused by an unrelated process (guarded by the
+  command/args match) is correctly not reported. See
+  `tests/basic/test_mcp_manager.py::TestMCPManagerOrphanDetection`
+  (6 tests) and `tests/fixtures/mcp_servers/single_instance_server.py`.
 
 - ~~Only the "tools" primitive was implemented~~ -- FIXED. MCP's other
   two primitives, "resources" (readable data sources) and "prompts"
