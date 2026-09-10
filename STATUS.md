@@ -70,6 +70,14 @@ merged:
   coverage, no live caller, already excluded from the debug/benchmark
   harness's own default list) and removed, along with the now-orphaned
   `map_patches()` helper.
+- GitPython index-version-3 incompatibility (#211): confirmed already
+  fixed upstream (GitPython PR #2081), and a real regression test
+  exists proving it -- `tests/basic/test_sanity_check_repo.py::
+  test_real_git_index_version_3_repo_works_without_error` creates an
+  actual index-v3 file via a real `git add -N` and exercises aider's
+  real `GitRepo` class against it (no mocked GitError). No dependency
+  bump or code change was needed, just this proof; noted here since it
+  wasn't previously listed in this section despite being done.
 
 See [CHANGES.md](CHANGES.md) for the detailed, dated changelog of all
 of the above.
@@ -235,6 +243,33 @@ rediscovered.
   test run, not a cleanup bug in aider's own code. Not fixed (it's a
   test-suite-only symptom); flagging so it isn't mistaken for a MCP
   cleanup regression if seen again in CI.
+  FOLLOW-UP (not started): the flake itself is still unaddressed, only
+  ruled out as a functional bug. A retry-on-`PermissionError` wrapper
+  around this test's `tearDown()` cleanup (or Python's
+  `tempfile.TemporaryDirectory(ignore_cleanup_errors=True)` where
+  applicable) would silence the noise without masking a real failure,
+  since the test's own assertions are unaffected either way. Tracked
+  here so the next person who hits it in CI doesn't have to
+  re-investigate from scratch before finding this note.
+
+### Contributor workflow / tooling
+
+- **No local pre-flight step catches pre-commit failures before a
+  push/PR.** Surfaced directly this session: PR #32 needed three
+  separate push-and-wait CI round-trips to go green, all for
+  formatting/lint drift that local `pre-commit` (or `black`/`isort`/
+  `flake8` run with the repo's actual configured flags) would have
+  caught in seconds -- (1) `black` was run locally without
+  `--line-length 100 --preview` (the flags actually pinned in
+  `.pre-commit-config.yaml`), producing different output than CI's
+  hook wanted; (2) a `flake8` E731 (lambda assignment) and an isort
+  ordering issue in files from an earlier commit in the same PR had
+  never been locally linted before that push. NOT FIXED: no git
+  pre-push hook, no CONTRIBUTING.md instruction to run `pre-commit run
+  --all-files` (or the equivalent manual tool invocations with correct
+  flags) before pushing. Tracked as a real process gap, not just this
+  session's mistake -- the next contributor (or agent) working on this
+  repo will hit the same CI round-trip cost without it.
 
 ### Documentation drift
 
@@ -317,13 +352,20 @@ rediscovered.
 
 ### Phase 1 cleanup
 
-- **`gui.py` liveness was never runtime-verified.** BUILD_PLAN.md Phase
-  1 item 7 called for actually launching `aider/gui.py` against a
-  scratch repo and explicitly deciding carry-forward/fix/drop for v1.
-  No record in STATUS.md, CHANGES.md, or BUILD_PLAN.md of this having
-  been done -- the file exists but its status is still technically
-  unresolved, which BUILD_PLAN.md's own Phase 1 exit criteria requires
-  before that phase can be considered fully closed.
+- ~~`gui.py` liveness was never runtime-verified~~ -- this STATUS.md
+  entry was itself stale/wrong. ARCHITECTURE_REVIEW.md §11.6 already
+  documents a real verification done 2026-09-08, during Phase 1:
+  `pip install -r requirements/requirements-browser.txt` installed
+  cleanly, `aider --gui` (headless) launched a real Streamlit server,
+  `curl http://localhost:8501/` returned 200 with real HTML, and
+  `curl http://localhost:8501/_stcore/health` returned "ok" --
+  confirming `gui.py`'s own script executed (not just the Streamlit
+  shell). Caught during a 2026-09-09 spec-vs-status re-scan: this file
+  and ARCHITECTURE_REVIEW.md had drifted out of sync with each other on
+  the same fact. Corrected here; no new work needed. Still true (from
+  ARCHITECTURE_REVIEW.md): no `test_gui.py`, not covered by CI, so
+  re-verify manually after any change touching `Coder.create()`,
+  `InputOutput`, or gui.py itself.
 
 ### Low-priority tracked items (not started)
 
