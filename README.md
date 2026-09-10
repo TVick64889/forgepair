@@ -46,6 +46,46 @@ src="https://img.shields.io/badge/🔄%20Singularity-88%25-e74c3c?style=flat-squ
 > and where to look for more detail before relying on this fork for
 > anything beyond experimentation.
 
+## What's different from aider
+
+ForgePair keeps aider's terminal-first, git-native, model-agnostic
+core (see [SPEC.md](SPEC.md) §3 for what was deliberately kept as-is)
+and changes two things: how the project is governed, and a handful of
+specific, long-requested capabilities upstream never shipped.
+
+**Governance -- so shipped work doesn't sit unreleased for months:**
+- CI is a real hard merge gate on `main` (tests across 5 Python
+  versions x 2 OSes, lint, Docker build), not advisory -- confirmed by
+  a direct push being rejected.
+- A live merge queue (GitHub's native merge queue, org-owned repo)
+  processes approved, green PRs automatically, without the maintainer
+  personally clicking merge each time.
+- Continuous release: every merge to `main` auto-computes the next
+  version and publishes to PyPI via Trusted Publishing (OIDC) -- no
+  stored long-lived token. This directly targets the exact failure
+  mode found in upstream aider at fork time (commits existed, but the
+  last PyPI release was 3+ months older than the last commit).
+- Tiered contributor categories (low-risk: docs/model-metadata/
+  dependency bumps vs. requires deeper review) documented in
+  [CONTRIBUTING.md](CONTRIBUTING.md).
+
+**Features aider users have been requesting since 2024, with nowhere
+to go (see [SPEC.md](SPEC.md) §2 for the sourcing):**
+- Native MCP (Model Context Protocol) client support (`--edit-format
+  agent`) -- tools, resources, and prompts, plus authenticated remote
+  HTTP MCP servers (bearer token / API key).
+- Approval-gated apply mode (`--confirm-edits`) -- diffs are gated
+  before applying, not just shown after the fact.
+- Honest failure handling on provider errors -- no more silent
+  0-token responses on rate-limits/API failures.
+- Issue/request triage that treats recurrence as a severity signal
+  instead of dedup-closing reports into silence, and gives feature
+  requests the same triage attention bug reports get.
+
+See [STATUS.md](STATUS.md) for what's actually verified-done today vs.
+still in progress, and [CHANGES.md](CHANGES.md) for the dated
+changelog.
+
 ## Features
 
 ### [Cloud and local LLMs](https://aider.chat/docs/llms.html)
