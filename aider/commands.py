@@ -19,6 +19,7 @@ from aider.format_settings import format_settings
 from aider.help import Help, install_help_extra
 from aider.io import CommandCompletionException
 from aider.llm import litellm
+from aider.mcp import MCPConnectionError
 from aider.repo import ANY_GIT_ERROR
 from aider.run_cmd import run_cmd
 from aider.scrape import Scraper, install_playwright
@@ -215,6 +216,140 @@ class Commands:
             models.print_matching_models(self.io, args)
         else:
             self.io.tool_output("Please provide a partial model name to search for.")
+
+    def _get_mcp_manager(self):
+        """Return the current coder's MCPManager, or None with a clear
+        error message if the current coder isn't AgentCoder (the only
+        coder that connects to MCP servers) or has no servers configured.
+        Shared by cmd_mcp_resources/cmd_mcp_prompts so both commands give
+        the same guidance rather than duplicating the check."""
+        mcp_manager = getattr(self.coder, "mcp_manager", None)
+        if mcp_manager is None:
+            self.io.tool_error(
+                "MCP resources/prompts are only available in agent mode (see /chat-mode agent)."
+            )
+            return None
+        if not mcp_manager.servers:
+            self.io.tool_error(
+                "No MCP servers configured (no .mcp.json found) -- nothing to list."
+            )
+            return None
+        return mcp_manager
+
+    def cmd_mcp_resources(self, args):
+        "List MCP resources from connected servers, or fetch one into the chat by URI"
+
+        mcp_manager = self._get_mcp_manager()
+        if mcp_manager is None:
+            return
+
+        uri = args.strip()
+        if not uri:
+            resources = mcp_manager.all_resources()
+            if not resources:
+                self.io.tool_output(
+                    "No resources available (no connected MCP server exposes any)."
+                )
+                return
+            self.io.tool_output("Available MCP resources:")
+            for res in resources:
+                label = res.name or res.uri
+                desc = f" -- {res.description}" if res.description else ""
+                self.io.tool_output(f"  {res.server_name}: {res.uri} ({label}){desc}")
+            self.io.tool_output("\nUse /mcp-resources <uri> to fetch one into the chat.")
+            return
+
+        matches = [r for r in mcp_manager.all_resources() if r.uri == uri]
+        if not matches:
+            self.io.tool_error(f"No connected MCP server exposes a resource with URI '{uri}'.")
+            return
+        resource = matches[0]
+
+        try:
+            result = mcp_manager.read_resource(resource.server_name, resource.uri)
+        except MCPConnectionError as err:
+            self.io.tool_error(str(err))
+            return
+
+        text_parts = [c.text for c in result.contents if hasattr(c, "text")]
+        if not text_parts:
+            self.io.tool_error(
+                f"Resource '{uri}' returned no text content (binary resources aren't"
+                " supported yet)."
+            )
+            return
+
+        content = f"Here is the content of MCP resource {uri}:\n\n" + "\n".join(text_parts)
+        self.coder.cur_messages += [
+            dict(role="user", content=content),
+            dict(role="assistant", content="Ok."),
+        ]
+        self.io.tool_output(f"... added {uri} to chat.")
+
+    def cmd_mcp_prompts(self, args):
+        "List MCP prompts from connected servers, or run one into the chat by name"
+
+        mcp_manager = self._get_mcp_manager()
+        if mcp_manager is None:
+            return
+
+        args = args.strip()
+        if not args:
+            prompts = mcp_manager.all_prompts()
+            if not prompts:
+                self.io.tool_output("No prompts available (no connected MCP server exposes any).")
+                return
+            self.io.tool_output("Available MCP prompts:")
+            for prompt in prompts:
+                desc = f" -- {prompt.description}" if prompt.description else ""
+                arg_names = ", ".join(a.get("name", "") for a in prompt.arguments)
+                arg_str = f" (args: {arg_names})" if arg_names else ""
+                self.io.tool_output(f"  {prompt.server_name}: {prompt.name}{arg_str}{desc}")
+            self.io.tool_output(
+                "\nUse /mcp-prompts <name> [key=value ...] to run one into the chat."
+            )
+            return
+
+        parts = args.split()
+        name = parts[0]
+        arguments = {}
+        for part in parts[1:]:
+            if "=" not in part:
+                self.io.tool_error(
+                    f"Invalid argument '{part}' -- expected key=value (e.g. name=World)."
+                )
+                return
+            key, value = part.split("=", 1)
+            arguments[key] = value
+
+        matches = [p for p in mcp_manager.all_prompts() if p.name == name]
+        if not matches:
+            self.io.tool_error(f"No connected MCP server exposes a prompt named '{name}'.")
+            return
+        prompt = matches[0]
+
+        try:
+            result = mcp_manager.get_prompt(prompt.server_name, prompt.name, arguments)
+        except MCPConnectionError as err:
+            self.io.tool_error(str(err))
+            return
+
+        text_parts = []
+        for message in result.messages:
+            content = message.content
+            text = getattr(content, "text", None)
+            if text:
+                text_parts.append(text)
+        if not text_parts:
+            self.io.tool_error(f"Prompt '{name}' returned no text content.")
+            return
+
+        content = "\n\n".join(text_parts)
+        self.coder.cur_messages += [
+            dict(role="user", content=content),
+            dict(role="assistant", content="Ok."),
+        ]
+        self.io.tool_output(f"... added prompt '{name}' to chat.")
 
     def cmd_web(self, args, return_content=False):
         "Scrape a webpage, convert to markdown and send in a message"

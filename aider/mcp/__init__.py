@@ -1,5 +1,5 @@
 from aider.mcp.config import MCPConfigError, MCPServerConfig, load_mcp_servers
-from aider.mcp.manager import MCPConnectionError, MCPManager, MCPTool
+from aider.mcp.manager import MCPConnectionError, MCPManager, MCPPrompt, MCPResource, MCPTool
 
 __all__ = [
     "MCPServerConfig",
@@ -8,4 +8,6 @@ __all__ = [
     "MCPConnectionError",
     "MCPManager",
     "MCPTool",
+    "MCPResource",
+    "MCPPrompt",
 ]
