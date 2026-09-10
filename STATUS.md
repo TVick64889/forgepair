@@ -249,15 +249,49 @@ rediscovered.
 
 ### GitHub Copilot provider (Phase 7 item 1)
 
-- **model-settings.yml entries for common `github_copilot/*` models
-  (item (c) of the Phase 7 Copilot work) are still not done.** Verified
-  directly: zero `github_copilot` matches in
-  `aider/resources/model-settings.yml` (separate from
-  `model-metadata.json`, which does have 49 Copilot entries already --
-  that's items (a)/(d), already shipped). Confirming whether litellm's
-  own metadata already covers these models requires a real GitHub
-  Copilot device-flow login, which can't be safely automated/verified
-  statically or in CI -- needs a human with a real account to run it.
+- ~~model-settings.yml entries for common `github_copilot/*` models
+  (item (c) of the Phase 7 Copilot work) were still not done~~ --
+  PARTIALLY FIXED. Re-verified live 2026-09-09 that the cached Copilot
+  device-flow token was NOT stale (still valid, ~18h remaining) and
+  confirmed it works end-to-end (`litellm.completion(model=
+  "github_copilot/gpt-4o", ...)` returned a real response). Probed the
+  live `/models` endpoint directly (not litellm's static list): 54 real
+  models currently served, of which litellm's own cost-map already
+  covers 19 -- the other 35 had zero `model-settings.yml` entries,
+  meaning `aider.models.Model` fell back to the generic default
+  (`edit_format: whole`, `use_repo_map: false`) for all of them, a real
+  functional degradation (worst/most token-expensive edit mode, no
+  codebase context) not just a cosmetic gap. Added 13 entries for the
+  models with an obvious underlying-family match already present in
+  this file (claude-sonnet-5/opus-4.7/4.8/4.8-fast/5 matched against
+  the existing claude-sonnet-4-6/opus-4-7 templates; gemini-3.5/3.6/
+  3.7/3.8-flash matched against gemini-3-flash-preview;
+  gpt-5.4/5.4-mini/5.5 matched against the existing gpt-5.4/5.5
+  entries; gpt-4-0125-preview matched against its own non-Copilot
+  entry), each mirroring that family's existing settings rather than
+  inventing new ones. Verified: `aider.models.Model(...)` for each new
+  entry resolves the intended `edit_format`/`use_repo_map`/
+  `weak_model_name` (confirmed directly, not just YAML-parse-checked),
+  and untouched models (e.g. `github_copilot/kimi-k3`) still correctly
+  fall back to the old default -- no regression. `tests/basic/
+  test_models.py` + `test_model_info_manager.py` (32 tests) pass.
+  NOT fully closed: the remaining 22 models (`claude-fable-*`,
+  `mai-code-*` variants beyond the one with an existing
+  model-metadata.json entry, `copilot-search-*`, `exec-agent-*`,
+  `trajectory-compaction`, internal `*-free-auto` pipeline variants)
+  have no clear family match in this file to template from --
+  guessing settings for them would be worse than leaving them on the
+  generic default. Also: could not live-verify a full completion
+  round-trip for every new entry, since this account's
+  `free_limited_copilot` SKU plan doesn't have access to every listed
+  model (confirmed: `github_copilot/gpt-5.4` and
+  `github_copilot/claude-sonnet-5` both returned a real, live "model
+  not supported" 400 from Copilot's own API for this account/plan,
+  not a config or code error -- `github_copilot/gpt-4o`, which has no
+  new entry from this pass, works live on this same account). The
+  settings themselves were verified via aider's own config-resolution
+  path, just not an end-to-end completion call for models this
+  account's plan can't reach.
 
 ### Phase 1 cleanup
 

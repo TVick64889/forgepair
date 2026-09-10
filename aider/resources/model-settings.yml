@@ -3126,3 +3126,135 @@
   use_repo_map: true
   use_temperature: false
   accepts_settings: ["reasoning_effort"]
+
+# github_copilot/* entries below give real per-model settings (edit
+# format, repo-map usage, weak/editor model routing) to Copilot models
+# that were falling back to the generic default (edit_format: whole,
+# use_repo_map: false) for lack of any entry -- a real functional
+# degradation, not cosmetic (worst/most token-expensive edit mode, no
+# codebase context). STATUS.md Phase 7 item (c). Scoped to models with
+# an obvious underlying-family match already in this file (confirmed
+# live via a real Copilot device-flow login + /models probe on
+# 2026-09-09, cross-checked against litellm's own cost-map coverage --
+# see STATUS.md for the full 54-model live list and the 19 litellm
+# already has cost-map entries for). Settings below mirror this file's
+# existing template entry for that same model family, not invented
+# from scratch. Models with no clear family match here (claude-fable-*,
+# mai-code-* variants beyond the one with an existing model-metadata.json
+# entry, copilot-search-*, exec-agent-*, trajectory-compaction, the
+# internal *-free-auto pipeline variants) are intentionally left out of
+# this pass -- adding settings for a model with no reference point
+# would be guessing, not a template match.
+
+- name: github_copilot/claude-sonnet-5
+  edit_format: diff
+  weak_model_name: github_copilot/claude-haiku-4.5
+  use_repo_map: true
+  examples_as_sys_msg: false
+  cache_control: true
+  editor_model_name: github_copilot/claude-sonnet-5
+  editor_edit_format: editor-diff
+  accepts_settings: ["thinking_tokens"]
+
+- name: github_copilot/claude-opus-4.7
+  edit_format: diff
+  weak_model_name: github_copilot/claude-haiku-4.5
+  use_repo_map: true
+  examples_as_sys_msg: false
+  cache_control: true
+  editor_model_name: github_copilot/claude-sonnet-5
+  editor_edit_format: editor-diff
+  use_temperature: false
+  overeager: true
+
+- name: github_copilot/claude-opus-4.8
+  edit_format: diff
+  weak_model_name: github_copilot/claude-haiku-4.5
+  use_repo_map: true
+  examples_as_sys_msg: false
+  cache_control: true
+  editor_model_name: github_copilot/claude-sonnet-5
+  editor_edit_format: editor-diff
+  use_temperature: false
+  overeager: true
+
+- name: github_copilot/claude-opus-4.8-fast
+  edit_format: diff
+  weak_model_name: github_copilot/claude-haiku-4.5
+  use_repo_map: true
+  examples_as_sys_msg: false
+  cache_control: true
+  editor_model_name: github_copilot/claude-sonnet-5
+  editor_edit_format: editor-diff
+  use_temperature: false
+  overeager: true
+
+- name: github_copilot/claude-opus-5
+  edit_format: diff
+  weak_model_name: github_copilot/claude-haiku-4.5
+  use_repo_map: true
+  examples_as_sys_msg: false
+  cache_control: true
+  editor_model_name: github_copilot/claude-sonnet-5
+  editor_edit_format: editor-diff
+  use_temperature: false
+  overeager: true
+
+- name: github_copilot/gemini-3.5-flash
+  overeager: true
+  edit_format: diff-fenced
+  use_repo_map: true
+  use_temperature: false
+  accepts_settings: ["thinking_tokens"]
+
+- name: github_copilot/gemini-3.6-flash
+  overeager: true
+  edit_format: diff-fenced
+  use_repo_map: true
+  use_temperature: false
+  accepts_settings: ["thinking_tokens"]
+
+- name: github_copilot/gemini-3.7-flash
+  overeager: true
+  edit_format: diff-fenced
+  use_repo_map: true
+  use_temperature: false
+  accepts_settings: ["thinking_tokens"]
+
+- name: github_copilot/gemini-3.8-flash
+  overeager: true
+  edit_format: diff-fenced
+  use_repo_map: true
+  use_temperature: false
+  accepts_settings: ["thinking_tokens"]
+
+- name: github_copilot/gpt-5.4
+  edit_format: diff
+  weak_model_name: github_copilot/gpt-4o-mini
+  use_repo_map: true
+  use_temperature: false
+  accepts_settings: ["reasoning_effort"]
+  overeager: true
+
+- name: github_copilot/gpt-5.4-mini
+  edit_format: diff
+  weak_model_name: github_copilot/gpt-4o-mini
+  use_repo_map: true
+  use_temperature: false
+  accepts_settings: ["reasoning_effort"]
+
+- name: github_copilot/gpt-5.5
+  edit_format: diff
+  weak_model_name: github_copilot/gpt-4o-mini
+  use_repo_map: true
+  use_temperature: false
+  accepts_settings: ["reasoning_effort"]
+  overeager: true
+
+- name: github_copilot/gpt-4-0125-preview
+  edit_format: udiff
+  weak_model_name: github_copilot/gpt-4o-mini
+  use_repo_map: true
+  lazy: true
+  reminder: sys
+  examples_as_sys_msg: true
