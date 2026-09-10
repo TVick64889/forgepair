@@ -101,7 +101,7 @@ class TestDeprecated(TestCase):
         test_cases = [
             ("opus", "claude-3-opus-20240229"),
             ("sonnet", "anthropic/claude-3-7-sonnet-20250219"),
-            ("haiku", "claude-3-5-haiku-20241022"),
+            ("haiku", "claude-haiku-4-5-20251001"),
             ("4", "gpt-4-0613"),
             # Testing the dash variant with underscore in attribute name
             ("4o", "gpt-4o"),
