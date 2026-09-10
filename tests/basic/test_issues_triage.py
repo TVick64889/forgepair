@@ -177,8 +177,11 @@ class TestBuildDashboardBody(unittest.TestCase):
         ]
         body1 = issues_mod.build_dashboard_body(groups, [])
         body2 = issues_mod.build_dashboard_body(groups, [])
+
         # Strip the timestamp line (only truly time-varying part) before comparing.
-        strip_ts = lambda b: "\n".join(b.split("\n")[1:])
+        def strip_ts(b):
+            return "\n".join(b.split("\n")[1:])
+
         self.assertEqual(strip_ts(body1), strip_ts(body2))
 
     def test_update_known_issues_dashboard_uses_build_dashboard_body(self):
