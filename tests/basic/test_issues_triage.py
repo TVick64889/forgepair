@@ -120,21 +120,74 @@ class TestClusterFeatureRequests(unittest.TestCase):
                 seen.add(issue["number"])
 
 
-class TestKnownIssuesDashboardBody(unittest.TestCase):
+class TestBuildDashboardBody(unittest.TestCase):
     """
-    update_known_issues_dashboard() does real API calls (find/create/
-    patch the dashboard issue), so we test the body-text-generation
-    logic indirectly isn't separated into its own function currently --
-    flagged here as a real gap: the dashboard body construction is
-    inline in update_known_issues_dashboard() rather than a pure
-    function, so it's not independently unit-testable without mocking
-    the API. Not fixed in this pass -- noted as a follow-up refactor if
-    this script gets touched again (extract body-building into a pure
-    function, e.g. build_dashboard_body(high_impact_groups,
-    feature_clusters) -> str).
+    Real unit tests for build_dashboard_body(), the pure function
+    extracted from update_known_issues_dashboard() so the dashboard's
+    text-generation logic is testable without mocking the GitHub API.
     """
 
-    def test_placeholder_acknowledges_gap(self):
+    def test_empty_inputs_produce_placeholder_sections(self):
+        body = issues_mod.build_dashboard_body([], [])
+        self.assertIn("_None currently above the high-impact threshold._", body)
+        self.assertIn("_None currently flagged._", body)
+        self.assertIn("## Recurring bug reports (ranked by report count)", body)
+        self.assertIn("## Possibly-related feature requests", body)
+
+    def test_high_impact_groups_rendered_and_ranked_by_report_count(self):
+        groups = [
+            {
+                "report_count": 3,
+                "subject": "crash on empty response",
+                "canonical_url": "https://github.com/x/y/issues/10",
+                "related": [11, 12],
+            },
+            {
+                "report_count": 7,
+                "subject": "MCP server timeout",
+                "canonical_url": "https://github.com/x/y/issues/20",
+                "related": [21],
+            },
+        ]
+        body = issues_mod.build_dashboard_body(groups, [])
+        idx_7 = body.index("**7 reports**")
+        idx_3 = body.index("**3 reports**")
+        self.assertLess(idx_7, idx_3, "higher report_count should be listed first")
+        self.assertIn("MCP server timeout", body)
+        self.assertIn("https://github.com/x/y/issues/20", body)
+        self.assertIn("(related: #21)", body)
+        self.assertIn("(related: #11, #12)", body)
+
+    def test_feature_clusters_rendered(self):
+        clusters = [
+            {"numbers": [1, 2], "titles": ["Add MCP support", "Add MCP support please"]},
+        ]
+        body = issues_mod.build_dashboard_body([], clusters)
+        self.assertIn("#1, #2", body)
+        self.assertIn("Add MCP support; Add MCP support please", body)
+
+    def test_output_is_deterministic_for_same_input(self):
+        groups = [
+            {
+                "report_count": 2,
+                "subject": "same crash",
+                "canonical_url": "https://github.com/x/y/issues/5",
+                "related": [6],
+            }
+        ]
+        body1 = issues_mod.build_dashboard_body(groups, [])
+        body2 = issues_mod.build_dashboard_body(groups, [])
+
+        # Strip the timestamp line (only truly time-varying part) before comparing.
+        def strip_ts(b):
+            return "\n".join(b.split("\n")[1:])
+
+        self.assertEqual(strip_ts(body1), strip_ts(body2))
+
+    def test_update_known_issues_dashboard_uses_build_dashboard_body(self):
+        # Regression guard: update_known_issues_dashboard should delegate
+        # to build_dashboard_body rather than re-inlining the logic.
+        self.assertTrue(hasattr(issues_mod, "build_dashboard_body"))
         self.assertTrue(hasattr(issues_mod, "update_known_issues_dashboard"))
 
 

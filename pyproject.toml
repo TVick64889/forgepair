@@ -1,7 +1,7 @@
 
 [project]
-name = "aider-chat"
-description = "Aider is AI pair programming in your terminal"
+name = "forgepair"
+description = "ForgePair is AI pair programming in your terminal -- a fork of aider (aider-AI/aider) maintained under a different governance model. See STATUS.md for details."
 readme = "README.md"
 classifiers = [
     "Development Status :: 4 - Beta",
@@ -21,10 +21,11 @@ requires-python = ">=3.10,<3.15"
 dynamic = ["dependencies", "optional-dependencies", "version"]
 
 [project.urls]
-Homepage = "https://github.com/Aider-AI/aider"
+Homepage = "https://github.com/TVick64889/forgepair"
 
 [project.scripts]
 aider = "aider.main:main"
+forgepair = "aider.main:main"
 
 [tool.setuptools.dynamic]
 dependencies = { file = "requirements.txt" }

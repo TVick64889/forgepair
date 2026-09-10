@@ -53,6 +53,34 @@ class AgentCoder(Coder):
     def _connect_mcp_tools(self):
         tools_by_server = self.mcp_manager.connect_all()
 
+        # Report (don't act on beyond what MCPManager itself already did)
+        # any subprocess left running by a previous session that died
+        # uncleanly -- see STATUS.md and MCPManager.check_for_leftover_processes.
+        # Default behavior is warn-only, advising the user to look into it;
+        # MCPManager only auto-kills a leftover when it was actually
+        # blocking this session's own connect for that same server name,
+        # which is reported separately (and louder) below.
+        killed_by_name = {p["server_name"] for p in self.mcp_manager.killed_leftover_processes}
+        for leftover in self.mcp_manager.leftover_processes:
+            if leftover["server_name"] in killed_by_name:
+                continue
+            pid_list = ", ".join(str(p) for p in leftover["pids"])
+            self.io.tool_warning(
+                f"MCP server '{leftover['server_name']}' has a leftover process still"
+                f" running from a previous session (pid(s): {pid_list},"
+                f" command: {leftover['command']}). This looks like an artifact of a"
+                " session that didn't shut down cleanly (crash, dropped connection,"
+                " etc.) -- if you don't recognize it as still in use, you may want to"
+                " end it yourself."
+            )
+        for killed in self.mcp_manager.killed_leftover_processes:
+            pid_list = ", ".join(str(p) for p in killed["pids"])
+            self.io.tool_warning(
+                f"MCP server '{killed['server_name']}' had a leftover process from a"
+                f" previous session (pid(s): {pid_list}) that was blocking this"
+                " session's own connection to it, so it was terminated automatically."
+            )
+
         for name, error in self.mcp_manager.connect_errors.items():
             self.io.tool_warning(f"MCP server '{name}' failed to connect: {error}")
 
@@ -113,7 +141,9 @@ class AgentCoder(Coder):
             arguments = json.loads(tool_call.function.arguments or "{}")
         except (TypeError, ValueError) as err:
             self._append_tool_result(
-                tool_call, is_error=True, text=f"Could not parse tool call arguments: {err}"
+                tool_call,
+                is_error=True,
+                text=f"Could not parse tool call arguments: {err}",
             )
             return
 

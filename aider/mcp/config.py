@@ -66,7 +66,7 @@ class MCPServerConfig:
 
     Exactly one of (command) or (url) must be set:
       - stdio transport: command (+ optional args, env)
-      - HTTP transport: url
+      - HTTP transport: url (+ optional headers, e.g. for bearer-token auth)
     """
 
     name: str
@@ -74,6 +74,7 @@ class MCPServerConfig:
     args: List[str] = field(default_factory=list)
     env: Dict[str, str] = field(default_factory=dict)
     url: Optional[str] = None
+    headers: Dict[str, str] = field(default_factory=dict)
     source_file: Optional[str] = None
 
     @property
@@ -117,6 +118,17 @@ def _validate_server_entry(name, entry, source_file):
     if has_url and not isinstance(entry["url"], str):
         raise MCPConfigError(f"mcpServers.{name}.url in {source_file} must be a string")
 
+    headers = entry.get("headers", {})
+    if not isinstance(headers, dict) or not all(isinstance(v, str) for v in headers.values()):
+        raise MCPConfigError(
+            f"mcpServers.{name}.headers in {source_file} must be a mapping of string to string"
+        )
+    if headers and not has_url:
+        raise MCPConfigError(
+            f"mcpServers.{name}.headers in {source_file} is only valid for an HTTP server"
+            " (one with 'url'), not a stdio server (one with 'command')"
+        )
+
     command = entry.get("command")
     if command is not None:
         command = _interpolate_env_vars(command, f"mcpServers.{name}.command", source_file)
@@ -131,6 +143,11 @@ def _validate_server_entry(name, entry, source_file):
         for k, v in env.items()
     }
 
+    interpolated_headers = {
+        k: _interpolate_env_vars(v, f"mcpServers.{name}.headers.{k}", source_file)
+        for k, v in headers.items()
+    }
+
     url = entry.get("url")
     if url is not None:
         url = _interpolate_env_vars(url, f"mcpServers.{name}.url", source_file)
@@ -141,6 +158,7 @@ def _validate_server_entry(name, entry, source_file):
         args=interpolated_args,
         env=interpolated_env,
         url=url,
+        headers=interpolated_headers,
         source_file=source_file,
     )
 

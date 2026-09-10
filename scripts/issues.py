@@ -500,17 +500,17 @@ def find_or_create_dashboard_issue():
     return response.json()["number"]
 
 
-def update_known_issues_dashboard(high_impact_groups, feature_clusters, auto_yes):
+def build_dashboard_body(high_impact_groups, feature_clusters):
     """
-    Rewrite a single pinned issue with a ranked (by report count) list
-    of known duplicate-crash groups and feature-request clusters, so
-    users can self-check before filing yet another duplicate. Per
-    design decision, this lives as a GitHub issue (not a repo file), to
-    avoid interacting with branch protection / opening PRs for a
-    bot-generated report.
-    """
-    print("\nUpdating known-issues dashboard...")
+    Pure function: render the known-issues dashboard body text from
+    already-computed high-impact groups and feature clusters. Split out
+    from update_known_issues_dashboard() (which also does the GitHub
+    API find/create/patch calls) so this text-generation logic can be
+    unit-tested directly, without mocking the API.
 
+    Extracted per BUILD_PLAN.md's tracked follow-up item (see
+    scripts/issues.py history / tests/basic/test_issues_triage.py).
+    """
     lines = [
         (
             f"_Last updated: {datetime.now(timezone.utc).strftime('%Y-%m-%d %H:%M UTC')} by the"
@@ -542,7 +542,21 @@ def update_known_issues_dashboard(high_impact_groups, feature_clusters, auto_yes
     else:
         lines.append("_None currently flagged._")
 
-    body = "\n".join(lines)
+    return "\n".join(lines)
+
+
+def update_known_issues_dashboard(high_impact_groups, feature_clusters, auto_yes):
+    """
+    Rewrite a single pinned issue with a ranked (by report count) list
+    of known duplicate-crash groups and feature-request clusters, so
+    users can self-check before filing yet another duplicate. Per
+    design decision, this lives as a GitHub issue (not a repo file), to
+    avoid interacting with branch protection / opening PRs for a
+    bot-generated report.
+    """
+    print("\nUpdating known-issues dashboard...")
+
+    body = build_dashboard_body(high_impact_groups, feature_clusters)
 
     dashboard_number = find_or_create_dashboard_issue()
 

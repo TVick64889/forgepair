@@ -14,7 +14,7 @@ def add_deprecated_model_args(parser, group):
         help=f"Use {sonnet_model} model for the main chat (deprecated, use --model)",
         default=False,
     )
-    haiku_model = "claude-3-5-haiku-20241022"
+    haiku_model = "claude-haiku-4-5-20251001"
     group.add_argument(
         "--haiku",
         action="store_true",
@@ -89,7 +89,7 @@ def handle_deprecated_model_args(args, io):
     model_map = {
         "opus": "claude-3-opus-20240229",
         "sonnet": "anthropic/claude-3-7-sonnet-20250219",
-        "haiku": "claude-3-5-haiku-20241022",
+        "haiku": "claude-haiku-4-5-20251001",
         "4": "gpt-4-0613",
         "4o": "gpt-4o",
         "mini": "gpt-4o-mini",

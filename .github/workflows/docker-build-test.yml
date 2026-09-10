@@ -41,6 +41,7 @@ on:
   pull_request:
     branches:
       - main
+  merge_group: # required so this check can report on merge-queue validation runs
 
 jobs:
   docker_build_test:

@@ -211,7 +211,7 @@ def check_streamlit_install(io):
         io,
         "streamlit",
         "You need to install the aider browser feature",
-        ["aider-chat[browser]"],
+        ["forgepair[browser]"],
     )
 
 
@@ -1177,6 +1177,19 @@ def main(argv=None, input=None, output=None, force_git_root=None, return_coder=F
             return
         except SwitchCoder as switch:
             coder.ok_to_warm_cache = False
+
+            # Explicitly shut down the outgoing coder's MCP servers (background
+            # event-loop thread + connected subprocess(es)/HTTP sessions) here,
+            # rather than relying solely on AgentCoder.__del__ to eventually run
+            # via garbage collection. GC timing is not guaranteed -- a user who
+            # switches in/out of agent mode repeatedly in one session could
+            # otherwise accumulate orphaned MCP server subprocesses/threads
+            # until the whole aider process exits (see STATUS.md). shutdown()
+            # is idempotent and a no-op for non-agent coders (no mcp_manager
+            # attribute at all).
+            old_mcp_manager = getattr(coder, "mcp_manager", None)
+            if old_mcp_manager is not None:
+                old_mcp_manager.shutdown()
 
             # Set the placeholder if provided
             if hasattr(switch, "placeholder") and switch.placeholder is not None:
