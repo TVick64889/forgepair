@@ -293,6 +293,28 @@ rediscovered.
   path, just not an end-to-end completion call for models this
   account's plan can't reach.
 
+### Model release/staleness handling (general, not just Copilot)
+
+- **No systematic, cross-provider process for catching new or stale
+  model entries as providers ship them.** The Copilot investigation
+  above (35 of 54 live models missing a `model-settings.yml` entry)
+  surfaced this as a pattern, not a one-off: `model-list-freshness.yml`
+  already auto-refreshes `model-metadata.json` on a schedule (see
+  "What's done"), but that only covers pricing/context-window
+  metadata pulled from litellm's own feed -- it does nothing for
+  `model-settings.yml` (edit_format/use_repo_map/weak_model_name/etc,
+  which litellm has no opinion on and aider must hand-curate per
+  model), and nothing for any *other* provider's model list drifting
+  out from under aider the same way Copilot's did. NOT INVESTIGATED
+  YET: what a good mechanical fix looks like here -- e.g. a scheduled
+  job that diffs each configured provider's live model list against
+  `model-settings.yml`/`model-metadata.json` and opens an issue (or a
+  PR with template-matched settings, same approach used for the 13
+  Copilot entries above) for anything new or missing, plus a way to
+  flag entries for models a provider has quietly stopped serving
+  (stale in the other direction). Tracked here as a follow-up
+  investigation, not scoped or started.
+
 ### Phase 1 cleanup
 
 - **`gui.py` liveness was never runtime-verified.** BUILD_PLAN.md Phase
