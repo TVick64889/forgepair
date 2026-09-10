@@ -135,16 +135,18 @@ rediscovered.
   package to publish yet, per the workflow's own comments) but is a
   real gap against BUILD_PLAN.md Phase 2's stated exit criteria ("a
   release auto-publishes from that merge"), which has not been met.
-- **Docker Hub publishing is intentionally not configured by default**
-  (no ForgePair-maintained Docker Hub account exists, no
-  current user demand for a pullable image maintained by this
-  project). `docker-build-test.yml` runs build-only on every PR so CI
-  validates the Dockerfile without needing any Docker Hub credentials.
-  Anyone can still use ForgePair via Docker today without waiting on
-  this -- see "Using ForgePair via Docker" below for both the
-  build-it-yourself path (works right now, zero setup) and how a fork
-  maintainer can turn on publishing to their own Docker Hub if they
-  want a pullable image.
+
+Not a gap, but related and worth noting here: Docker Hub publishing is
+also not configured by default (no ForgePair-maintained Docker Hub
+account exists). This isn't an unfinished engineering task -- it's a
+deliberate choice with a fully documented, ready-to-use path for
+anyone who wants it. `docker-build-test.yml` already runs build-only
+on every PR, so CI validates the Dockerfile without needing any Docker
+Hub credentials, and the publish workflow itself is fully built and
+just needs a fork maintainer's own credentials to turn on. See "Using
+ForgePair via Docker" below for both the build-it-yourself path (works
+right now, zero setup) and the exact steps to enable publishing to
+your own Docker Hub account.
 
 ### MCP (Model Context Protocol) client
 
@@ -240,36 +242,44 @@ rediscovered.
   explicit `mcp_manager.shutdown()`, then delete the tempdir) succeeds
   cleanly every time. Looks like Windows-specific resource/handle
   pressure from spawning ~15+ subprocesses within 40 seconds in one
-  test run, not a cleanup bug in aider's own code. Not fixed (it's a
-  test-suite-only symptom); flagging so it isn't mistaken for a MCP
-  cleanup regression if seen again in CI.
-  FOLLOW-UP (not started): the flake itself is still unaddressed, only
-  ruled out as a functional bug. A retry-on-`PermissionError` wrapper
-  around this test's `tearDown()` cleanup (or Python's
-  `tempfile.TemporaryDirectory(ignore_cleanup_errors=True)` where
-  applicable) would silence the noise without masking a real failure,
-  since the test's own assertions are unaffected either way. Tracked
-  here so the next person who hits it in CI doesn't have to
-  re-investigate from scratch before finding this note.
+  test run, not a cleanup bug in aider's own code.
+  ~~FOLLOW-UP: not started~~ -- FIXED. `test_agent_coder.py` was using a
+  raw `tempfile.TemporaryDirectory()` directly, when aider already has
+  a purpose-built `aider.utils.IgnorantTemporaryDirectory` for exactly
+  this (Windows PermissionError/RecursionError-tolerant cleanup, using
+  `ignore_cleanup_errors=True` on Python 3.10+, already used
+  everywhere else in the test suite via `ChdirTemporaryDirectory`/
+  `GitTemporaryDirectory`) -- this test just wasn't using it. Switched
+  `setUp()` to `IgnorantTemporaryDirectory()`. Verified: 3 back-to-back
+  runs of the exact same heavy file combination that originally
+  surfaced the flake, all clean (58/58 tests passing each time).
 
 ### Contributor workflow / tooling
 
-- **No local pre-flight step catches pre-commit failures before a
-  push/PR.** Surfaced directly this session: PR #32 needed three
-  separate push-and-wait CI round-trips to go green, all for
-  formatting/lint drift that local `pre-commit` (or `black`/`isort`/
-  `flake8` run with the repo's actual configured flags) would have
-  caught in seconds -- (1) `black` was run locally without
+- ~~No local pre-flight step catches pre-commit failures before a
+  push/PR~~ -- PARTIALLY FIXED. Surfaced directly this session: PR #32
+  needed three separate push-and-wait CI round-trips to go green, all
+  for formatting/lint drift that local `pre-commit` (or `black`/
+  `isort`/`flake8` run with the repo's actual configured flags) would
+  have caught in seconds -- (1) `black` was run locally without
   `--line-length 100 --preview` (the flags actually pinned in
   `.pre-commit-config.yaml`), producing different output than CI's
   hook wanted; (2) a `flake8` E731 (lambda assignment) and an isort
   ordering issue in files from an earlier commit in the same PR had
-  never been locally linted before that push. NOT FIXED: no git
-  pre-push hook, no CONTRIBUTING.md instruction to run `pre-commit run
-  --all-files` (or the equivalent manual tool invocations with correct
-  flags) before pushing. Tracked as a real process gap, not just this
-  session's mistake -- the next contributor (or agent) working on this
-  repo will hit the same CI round-trip cost without it.
+  never been locally linted before that push. CONTRIBUTING.md already
+  documented `pre-commit install` and `pre-commit run --all-files` --
+  the gap was that this session's actual working environment never had
+  the hook installed, not a documentation gap. Ran `pre-commit install`
+  in this environment and verified it actually fires and blocks a bad
+  commit: a deliberately malformed scratch file (unused imports,
+  wrong formatting) was correctly caught and blocked by isort/black/
+  flake8 in sequence before the commit completed. NOT FULLY CLOSED:
+  this only fixes the local dev environment used this session --
+  there's still no CI-independent enforcement (e.g. a documented
+  onboarding step, or a repo-level reminder) that guarantees every
+  future contributor/agent working on this repo actually runs
+  `pre-commit install` before their first commit, so the same CI
+  round-trip cost could still recur for someone else.
 
 ### Documentation drift
 

@@ -11,6 +11,7 @@ from litellm.types.utils import ChatCompletionMessageToolCall, Function
 from aider.coders import Coder
 from aider.io import InputOutput
 from aider.models import Model
+from aider.utils import IgnorantTemporaryDirectory
 
 ECHO_SERVER_SCRIPT = str(
     Path(__file__).resolve().parent.parent / "fixtures" / "mcp_servers" / "echo_server.py"
@@ -39,7 +40,7 @@ class TestAgentCoderRoundTrip(unittest.TestCase):
     """
 
     def setUp(self):
-        self.tmpdir_obj = __import__("tempfile").TemporaryDirectory()
+        self.tmpdir_obj = IgnorantTemporaryDirectory()
         self.tmpdir = Path(self.tmpdir_obj.name)
         self.original_cwd = __import__("os").getcwd()
         __import__("os").chdir(self.tmpdir)
