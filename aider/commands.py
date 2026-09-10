@@ -230,9 +230,7 @@ class Commands:
             )
             return None
         if not mcp_manager.servers:
-            self.io.tool_error(
-                "No MCP servers configured (no .mcp.json found) -- nothing to list."
-            )
+            self.io.tool_error("No MCP servers configured (no .mcp.json found) -- nothing to list.")
             return None
         return mcp_manager
 
@@ -247,9 +245,7 @@ class Commands:
         if not uri:
             resources = mcp_manager.all_resources()
             if not resources:
-                self.io.tool_output(
-                    "No resources available (no connected MCP server exposes any)."
-                )
+                self.io.tool_output("No resources available (no connected MCP server exposes any).")
                 return
             self.io.tool_output("Available MCP resources:")
             for res in resources:

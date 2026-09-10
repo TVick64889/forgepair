@@ -60,9 +60,7 @@ class AgentCoder(Coder):
         # MCPManager only auto-kills a leftover when it was actually
         # blocking this session's own connect for that same server name,
         # which is reported separately (and louder) below.
-        killed_by_name = {
-            p["server_name"] for p in self.mcp_manager.killed_leftover_processes
-        }
+        killed_by_name = {p["server_name"] for p in self.mcp_manager.killed_leftover_processes}
         for leftover in self.mcp_manager.leftover_processes:
             if leftover["server_name"] in killed_by_name:
                 continue
@@ -164,9 +162,7 @@ class AgentCoder(Coder):
             explicit_yes_required=True,
         )
         if not approved:
-            self._append_tool_result(
-                tool_call, is_error=True, text="Tool call rejected by user."
-            )
+            self._append_tool_result(tool_call, is_error=True, text="Tool call rejected by user.")
             return
 
         try:
@@ -175,14 +171,8 @@ class AgentCoder(Coder):
             self._append_tool_result(tool_call, is_error=True, text=str(err))
             return
 
-        text_parts = [
-            c.text for c in result.content if getattr(c, "type", None) == "text"
-        ]
-        text = (
-            "\n".join(text_parts)
-            if text_parts
-            else "(tool call returned no text content)"
-        )
+        text_parts = [c.text for c in result.content if getattr(c, "type", None) == "text"]
+        text = "\n".join(text_parts) if text_parts else "(tool call returned no text content)"
         self._append_tool_result(tool_call, is_error=bool(result.isError), text=text)
 
     def _append_tool_result(self, tool_call, is_error, text):

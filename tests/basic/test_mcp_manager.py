@@ -14,16 +14,10 @@ from aider.mcp.config import MCPServerConfig
 from aider.mcp.manager import MCPConnectionError, MCPManager
 
 ECHO_SERVER_SCRIPT = str(
-    Path(__file__).resolve().parent.parent
-    / "fixtures"
-    / "mcp_servers"
-    / "echo_server.py"
+    Path(__file__).resolve().parent.parent / "fixtures" / "mcp_servers" / "echo_server.py"
 )
 AUTH_HTTP_SERVER_SCRIPT = str(
-    Path(__file__).resolve().parent.parent
-    / "fixtures"
-    / "mcp_servers"
-    / "auth_http_server.py"
+    Path(__file__).resolve().parent.parent / "fixtures" / "mcp_servers" / "auth_http_server.py"
 )
 RESOURCES_PROMPTS_SERVER_SCRIPT = str(
     Path(__file__).resolve().parent.parent
@@ -264,9 +258,7 @@ class TestMCPManagerResourcesAndPrompts(unittest.TestCase):
         self.assertIn("name", arg_names)
 
         result = self.manager.get_prompt("res-prompt-test", "greet", {"name": "Bob"})
-        text_parts = [
-            m.content.text for m in result.messages if hasattr(m.content, "text")
-        ]
+        text_parts = [m.content.text for m in result.messages if hasattr(m.content, "text")]
         self.assertIn("Bob", "\n".join(text_parts))
 
     def test_read_resource_on_unconnected_server_raises(self):
@@ -390,9 +382,7 @@ class TestMCPManagerOrphanDetection(unittest.TestCase):
 
         try:
             alive_recorded_pids = [p for p in recorded_pids if psutil.pid_exists(p)]
-            self.assertTrue(
-                alive_recorded_pids, "at least one recorded pid must be alive"
-            )
+            self.assertTrue(alive_recorded_pids, "at least one recorded pid must be alive")
 
             second_manager = MCPManager({}, pid_file=self.pid_file)
             leftovers = second_manager.check_for_leftover_processes()

@@ -182,9 +182,7 @@ class MCPManager:
         try:
             return future.result(timeout=timeout or self.timeout)
         except asyncio.TimeoutError:
-            raise MCPConnectionError(
-                f"MCP operation timed out after {timeout or self.timeout}s"
-            )
+            raise MCPConnectionError(f"MCP operation timed out after {timeout or self.timeout}s")
 
     def shutdown(self):
         """Close all sessions/transports and stop the event loop. Safe to
@@ -328,9 +326,7 @@ class MCPManager:
             if wait_ready not in done:
                 wait_ready.cancel()
 
-    async def _server_lifetime(
-        self, name, server: MCPServerConfig, ready: asyncio.Event
-    ):
+    async def _server_lifetime(self, name, server: MCPServerConfig, ready: asyncio.Event):
         """Owns one server's full connection lifetime in a single task, so the
         anyio cancel scopes opened by its transport/session context managers
         are entered AND exited by this same task (required by anyio -- see
@@ -442,7 +438,7 @@ class MCPManager:
                         server_name=name,
                         name=p.name,
                         description=p.description,
-                        arguments=[a.model_dump() for a in (p.arguments or [])],
+                        arguments=[a.model_dump() for a in p.arguments or []],
                     )
                     for p in prompt_result.prompts
                 ]
@@ -702,9 +698,7 @@ class MCPManager:
         taken as evidence this leftover is what's blocking it."""
         killed_pids = []
         for pid in leftover["pids"]:
-            if not self._pid_matches_recorded(
-                pid, leftover["command"], leftover["args"]
-            ):
+            if not self._pid_matches_recorded(pid, leftover["command"], leftover["args"]):
                 continue
             try:
                 proc = psutil.Process(pid)

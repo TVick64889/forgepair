@@ -120,7 +120,9 @@ class TestMCPResourcesAndPromptsCommandsOutsideAgentMode(unittest.TestCase):
         self.original_cwd = __import__("os").getcwd()
         __import__("os").chdir(self.tmpdir)
         self.io = InputOutput(pretty=False, fancy_input=False, yes=True)
-        self.coder = Coder.create(Model("gpt-3.5-turbo"), None, io=self.io, fnames=[], use_git=False)
+        self.coder = Coder.create(
+            Model("gpt-3.5-turbo"), None, io=self.io, fnames=[], use_git=False
+        )
         self.commands = Commands(self.io, self.coder)
 
     def tearDown(self):
