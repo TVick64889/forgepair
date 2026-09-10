@@ -93,34 +93,26 @@ rediscovered.
 
 ### Governance / CI
 
-- **No merge queue is actually configured.** Confirmed directly via
-  GitHub's API (`mergeQueue: null`). Branch protection/required checks
-  are real and enforced, but every merge to date has been the repo
-  owner clicking merge directly, not a queue processing an approved,
-  green PR automatically.
-  INVESTIGATED 2026-09-09, still not configured -- real platform
-  blocker, not a config mistake. Attempted to migrate `main` from
-  classic branch protection to a repository ruleset (needed for
-  GitHub's native `merge_queue` rule type) preserving every existing
-  protection (1 required approving review, all 8 required status
-  checks, no force-push/deletion, no bypass actors -- matching current
-  `enforce_admins: true`). The API rejects any ruleset containing a
-  `merge_queue` rule with `422 Validation Failed` regardless of
-  payload shape (confirmed by retrying with a minimal ruleset
-  containing only the merge_queue rule). Root cause: confirmed via
-  `gh api repos/TVick64889/forgepair --jq '.owner.type'` that this
-  repo is owned by a personal user account (`User`), and GitHub's
-  native merge queue is only available for organization-owned
-  repositories -- not a mistake in the ruleset JSON. Nothing was
-  changed on GitHub as a result of this attempt (ruleset creation
-  failed before any write landed; `gh api
-  repos/TVick64889/forgepair/rulesets` still returns `[]`, existing
-  classic branch protection untouched).
-  Options going forward (not yet decided): (1) transfer the repo to a
-  new or existing GitHub organization, then set up the native merge
-  queue there; (2) use a bot-based queue (e.g. Mergify, which works on
-  personal-account repos) instead of GitHub's native feature; (3)
-  leave this gap open and keep merging directly, same as today.
+- ~~No merge queue is actually configured.~~ -- FIXED 2026-09-10. The
+  repo transferred to the `forgepair` GitHub organization (from the
+  personal `TVick64889` account) specifically to unblock this --
+  GitHub's native merge queue only works for organization-owned repos
+  (see the now-resolved investigation below for how that was
+  confirmed). `main` now has a repository ruleset
+  (`main-protection-with-merge-queue`) with a real `merge_queue` rule
+  alongside `required_status_checks`, `deletion`, and
+  `non_fast_forward`, replacing the old classic branch protection.
+  Confirmed live via `gh api repos/forgepair/forgepair/rulesets`
+  (returns the rule with type `merge_queue`, not `[]`); PR #40
+  (scipy/numpy constraints fix) went green and entered the queue on
+  2026-09-10 to verify it end-to-end -- update this note once it
+  actually lands to confirm a real auto-merge, not just enqueueing.
+  Original investigation (2026-09-09, kept for context): attempting to
+  add a `merge_queue` rule to a ruleset on the personal-account repo
+  returned `422 Validation Failed` regardless of payload shape;
+  `gh api repos/TVick64889/forgepair --jq '.owner.type'` confirmed
+  `User`-owned repos can't use this feature, which is what motivated
+  the org transfer.
 - **No second contributor has ever used the tiered-merge process.**
   Confirmed via the repo's collaborator list (one member). The tiered
   categories are documented in CONTRIBUTING.md but have never actually
@@ -128,13 +120,16 @@ rediscovered.
   governance model (it doesn't bottleneck on one person) has evidence
   for the CI-gate half, but not the "someone else actually merges
   something" half.
-- **Continuous release is still dry-run.** `continuous-release.yml`
-  correctly computes what the next version would be on every merge,
-  but `DRY_RUN: "true"` and no `PYPI_API_TOKEN` secret means nothing
-  has ever actually auto-published. This is intentional (no real
-  package to publish yet, per the workflow's own comments) but is a
-  real gap against BUILD_PLAN.md Phase 2's stated exit criteria ("a
-  release auto-publishes from that merge"), which has not been met.
+- ~~Continuous release is still dry-run.~~ -- FIXED 2026-09-10.
+  `continuous-release.yml`'s `DRY_RUN` flipped to `"false"`, and
+  publishing is live: the `forgepair` package on PyPI shows a real
+  `1.0.0` release (confirmed via `pip index versions forgepair`).
+  Note the actual publish mechanism ended up different from what this
+  gap originally assumed: rather than a stored `PYPI_API_TOKEN`
+  secret, publishing went out via `release.yml` using PyPI Trusted
+  Publishing (OIDC) -- no long-lived token stored in the repo at all.
+  `continuous-release.yml`'s own header comments still describe the
+  old token-based plan and need a follow-up doc pass to match.
 
 Not a gap, but related and worth noting here: Docker Hub publishing is
 also not configured by default (no ForgePair-maintained Docker Hub
@@ -421,7 +416,7 @@ setup on the maintainers' end.
 ### Build it yourself (works right now)
 
 ```
-git clone https://github.com/TVick64889/forgepair
+git clone https://github.com/forgepair/forgepair
 cd forgepair
 docker build -t forgepair -f docker/Dockerfile --target aider .
 docker run -it --rm -v "$(pwd):/app" forgepair

@@ -158,7 +158,10 @@ reformats a large amount of unrelated pre-existing code (confirmed by
 test-running it) -- needs its own isolated, reviewed PR, not bundled
 into other work. Workaround documented in CONTRIBUTING.md
 (persistent Python 3.11 .venv-precommit/) in the meantime.
-STATUS: NOT DONE -- workaround only, real fix still outstanding.
+STATUS: DONE 2026-09-09 -- `.pre-commit-config.yaml` now pins `black
+26.5.1`; the repo-wide reformat was applied as its own isolated PR.
+The Python-3.11-pre-commit-venv workaround is no longer needed and was
+removed from CONTRIBUTING.md.
 
 TRACKED SUB-ITEM (do not skip): fix the flaky pandoc-download test
 failures in tests/scrape/test_scrape.py (5 tests). Root cause is
@@ -172,8 +175,11 @@ reason rather than fixed, to unblock merges. Real fix options noted in
 the test file itself: pin/vendor a known pandoc version instead of
 "latest", or mock pypandoc entirely instead of hitting the real
 download path in these tests.
-STATUS: NOT DONE -- workaround only (tests skipped), real fix still
-outstanding.
+STATUS: DONE 2026-09-09 (PR #23) -- mocked
+`pypandoc.get_pandoc_version()` in each affected test so pandoc is
+reported as already installed, removing the network-dependent
+download path entirely; all 5 tests un-skipped and passing. See
+STATUS.md's MCP section and CHANGES.md for the verified detail.
 
 TRACKED SUB-ITEM (informational, not a defect): Docker Hub publishing
 is intentionally NOT configured. docker-release.yml (tag-triggered)
@@ -201,6 +207,11 @@ STATUS: WORKING AS INTENDED -- documented for future clarity, no action needed.
 Exit criteria: a PR from a second contributor, in a defined low-risk
 category, merges via the queue without you personally clicking merge,
 and a release auto-publishes from that merge.
+STATUS (2026-09-10): release-auto-publish half is DONE -- the merge
+queue is live (main-protection-with-merge-queue ruleset,
+org-owned repo) and continuous-release.yml auto-published forgepair
+1.0.0 to PyPI via Trusted Publishing. The "second contributor" half is
+still open -- see "Known gaps" in STATUS.md.
 
 ---
 
