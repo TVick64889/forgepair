@@ -21,14 +21,14 @@ merged:
   (tests across 5 Python versions x 2 OSes, lint, Docker build) verified
   as a real, working hard gate -- confirmed directly by attempting a
   direct push (rejected) and running a real PR through the full flow to
-  merge. Continuous-release automation exists and correctly computes
-  next-version on every merge, but is intentionally still in dry-run
-  mode (no PyPI token configured yet). Tiered contributor categories are
-  documented in CONTRIBUTING.md. See "Known gaps" below for what's NOT
-  yet true about this (no merge queue configured, no second contributor
-  has ever used the tiered process, release automation not live) --
-  this was previously overstated here as fully proven; corrected after
-  a direct re-audit against BUILD_PLAN.md's own item-level exit criteria.
+  merge. A live GitHub-native merge queue is configured and verified
+  end-to-end (org-owned repo, `main-protection-with-merge-queue`
+  ruleset -- PR #40 actually merged through it automatically), and
+  continuous release is live: every merge to `main` auto-publishes to
+  PyPI via Trusted Publishing (OIDC), no stored token; `forgepair`
+  1.0.0+ is live on PyPI. Tiered contributor categories are documented
+  in CONTRIBUTING.md. See "Known gaps" below for what's NOT yet true
+  about this (no second contributor has ever used the tiered process).
 - Issue/request triage redesign -- verified live against this repo.
 - Model-metadata fragility fixes (OpenRouter scraping replaced with
   the real API, hardcoded model lists auto-refreshed).
@@ -43,9 +43,8 @@ merged:
   401s, not mocks.
 - Pinned `black` version upgraded (`23.3.0` -> `26.5.1`) and the
   repo-wide reformat applied as its own isolated PR; the old
-  Python-3.11-pre-commit-venv workaround is no longer needed for
-  compatibility (CONTRIBUTING.md's note on it can be pruned in a
-  follow-up doc pass).
+  Python-3.11-pre-commit-venv workaround note has been pruned from
+  CONTRIBUTING.md (no longer needed since the version bump).
 - `requirements/common-constraints.txt`'s scipy/numpy version-branch
   conflict (see former issue #18) fixed -- `scripts/pip-compile.sh`
   now compiles with `--universal --python-version 3.10`, resolving the
@@ -93,20 +92,17 @@ rediscovered.
 
 ### Governance / CI
 
-- ~~No merge queue is actually configured.~~ -- FIXED 2026-09-10. The
-  repo transferred to the `forgepair` GitHub organization (from the
-  personal `TVick64889` account) specifically to unblock this --
-  GitHub's native merge queue only works for organization-owned repos
-  (see the now-resolved investigation below for how that was
-  confirmed). `main` now has a repository ruleset
-  (`main-protection-with-merge-queue`) with a real `merge_queue` rule
-  alongside `required_status_checks`, `deletion`, and
-  `non_fast_forward`, replacing the old classic branch protection.
-  Confirmed live via `gh api repos/forgepair/forgepair/rulesets`
-  (returns the rule with type `merge_queue`, not `[]`); PR #40
-  (scipy/numpy constraints fix) went green and entered the queue on
-  2026-09-10 to verify it end-to-end -- update this note once it
-  actually lands to confirm a real auto-merge, not just enqueueing.
+- ~~No merge queue is actually configured.~~ -- FIXED and VERIFIED
+  2026-09-10. The repo transferred to the `forgepair` GitHub
+  organization (from the personal `TVick64889` account) specifically to
+  unblock this -- GitHub's native merge queue only works for
+  organization-owned repos (see the original investigation below).
+  `main` has a repository ruleset (`main-protection-with-merge-queue`)
+  with a real `merge_queue` rule alongside `required_status_checks`,
+  `deletion`, and `non_fast_forward`, replacing the old classic branch
+  protection. Confirmed end-to-end, not just configured: PR #40
+  (scipy/numpy constraints fix) went green, entered the queue, and
+  merged automatically on 2026-09-10 without anyone clicking merge.
   Original investigation (2026-09-09, kept for context): attempting to
   add a `merge_queue` rule to a ruleset on the personal-account repo
   returned `422 Validation Failed` regardless of payload shape;
@@ -124,12 +120,12 @@ rediscovered.
   `continuous-release.yml`'s `DRY_RUN` flipped to `"false"`, and
   publishing is live: the `forgepair` package on PyPI shows a real
   `1.0.0` release (confirmed via `pip index versions forgepair`).
-  Note the actual publish mechanism ended up different from what this
-  gap originally assumed: rather than a stored `PYPI_API_TOKEN`
-  secret, publishing went out via `release.yml` using PyPI Trusted
-  Publishing (OIDC) -- no long-lived token stored in the repo at all.
-  `continuous-release.yml`'s own header comments still describe the
-  old token-based plan and need a follow-up doc pass to match.
+  The actual publish mechanism ended up different from what this gap
+  originally assumed: rather than a stored `PYPI_API_TOKEN` secret,
+  publishing goes out via `release.yml` using PyPI Trusted Publishing
+  (OIDC) -- no long-lived token stored in the repo at all.
+  `continuous-release.yml`'s header comments have been updated to match
+  (see PR #41, 2026-09-10) -- no longer a doc-drift gap.
 
 Not a gap, but related and worth noting here: Docker Hub publishing is
 also not configured by default (no ForgePair-maintained Docker Hub
@@ -441,12 +437,10 @@ publish workflow already exists and just needs your own credentials:
 3. `.github/workflows/docker-release.yml` triggers on any `vX.Y.Z` tag
    push and builds+pushes both targets, multi-arch (amd64+arm64), to
    `${DOCKERHUB_USERNAME}/aider` and `${DOCKERHUB_USERNAME}/aider-full`.
-   Note: this repo's own `continuous-release.yml` is currently in
-   dry-run mode and doesn't push version tags yet (see BUILD_PLAN.md
-   Phase 2 item 4) -- if you want tag-triggered publishing to actually
-   fire, you'll need your own tagging process (e.g. push a `v1.0.0` tag
-   by hand, or flip your fork's release workflow live) until that
-   changes upstream.
+   Note: this repo's own `continuous-release.yml` is live (not dry-run)
+   and already auto-tags `vX.Y.Z` on every merge to `main` -- so on a
+   real fork with these secrets set, `docker-release.yml` will fire
+   automatically on the next merge with no extra tagging step needed.
 4. Alternatively, trigger `docker-release.yml` manually any time via
    `workflow_dispatch` (the "Run workflow" button in the Actions tab)
    without needing a tag push at all.
