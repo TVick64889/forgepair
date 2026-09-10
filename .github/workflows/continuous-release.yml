@@ -1,25 +1,23 @@
-name: Continuous Release (dry run)
+name: Continuous Release
 
-# Computes what the next release tag/version WOULD be on every merge to
-# main, and reports it in the workflow summary -- without actually
-# creating the tag or triggering a PyPI publish.
+# Computes what the next release tag/version should be on every merge
+# to main, and -- now that this is live (DRY_RUN: "false" below) --
+# creates and pushes that `vX.Y.Z` tag, which is release.yml's
+# trigger for building and publishing to PyPI.
 #
 # This exists to close the exact gap that hurt upstream aider: commits
 # landed on main for months with no corresponding release, so users
-# never got the fixes. Once ForgePair is ready to publish real packages
-# (see BUILD_PLAN.md Phase 2 item 4), flip DRY_RUN below to false --
-# at that point this workflow will actually create and push the
-# `vX.Y.Z` tag, which is release.yml's existing trigger for building
-# and publishing to PyPI (that workflow is unchanged and already
-# gated on the PYPI_API_TOKEN secret, which is intentionally not
-# configured yet).
+# never got the fixes.
 #
-# Version bump policy (dry run and once live): patch bump on every
-# merge to main. This is the aider-established policy already used by
-# setuptools_scm (see pyproject.toml) -- ForgePair keeps it rather than
-# inventing conventional-commit-based bumping, to stay compatible with
-# how the fork's own version numbers are already being derived from
-# git tags.
+# Publishing itself (release.yml, triggered by the tag this workflow
+# pushes) uses PyPI Trusted Publishing (OIDC) -- no PYPI_API_TOKEN
+# secret is stored in this repo. See release.yml for that flow.
+#
+# Version bump policy: patch bump on every merge to main. This is the
+# aider-established policy already used by setuptools_scm (see
+# pyproject.toml) -- ForgePair keeps it rather than inventing
+# conventional-commit-based bumping, to stay compatible with how the
+# fork's own version numbers are already being derived from git tags.
 
 on:
   push:

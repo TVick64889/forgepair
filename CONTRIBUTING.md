@@ -74,7 +74,7 @@ licensed under the same terms.
 ### Clone the Repository
 
 ```
-git clone https://github.com/TVick64889/forgepair.git
+git clone https://github.com/forgepair/forgepair.git
 cd forgepair
 ```
 
