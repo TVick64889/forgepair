@@ -1481,3 +1481,85 @@ class TestMain(TestCase):
             )
         for call in mock_io_instance.tool_warning.call_args_list:
             self.assertNotIn("Cost estimates may be inaccurate", call[0][0])
+
+    @patch("aider.main.InputOutput")
+    @patch("aider.main.Coder.create")
+    def test_switch_coder_shuts_down_outgoing_mcp_manager(self, MockCoderCreate, MockInputOutput):
+        """STATUS.md gap: the persistent /chat-mode /model switch loop in
+        main() must explicitly call the outgoing coder's mcp_manager.shutdown()
+        before replacing it, instead of relying on AgentCoder.__del__ via GC
+        (which is non-deterministic and can leak MCP server subprocesses/
+        threads across repeated switches in one session). This drives the
+        real SwitchCoder except-branch in main()'s while-loop -- no mocking
+        of the branch itself -- and asserts shutdown() actually fires, in
+        order, before the replacement coder is created."""
+        from aider.commands import SwitchCoder
+
+        call_order = []
+
+        first_coder = MagicMock(name="first_coder")
+        first_coder.mcp_manager.shutdown.side_effect = lambda: call_order.append("shutdown")
+        # First call to coder.run() raises SwitchCoder once; the replacement
+        # coder's run() just completes the CLI session normally.
+        first_coder.run.side_effect = SwitchCoder(edit_format="code")
+
+        second_coder = MagicMock(name="second_coder")
+        second_coder.run.return_value = None
+
+        def fake_create(*args, **kwargs):
+            call_order.append("create")
+            return second_coder
+
+        # main()'s own setup calls Coder.create() once to build the initial
+        # coder (returns first_coder), then the SwitchCoder handler inside
+        # the while-loop calls it again for the replacement (fake_create ->
+        # second_coder, recording "create" in call_order).
+        calls = {"n": 0}
+
+        def create_dispatch(*args, **kwargs):
+            calls["n"] += 1
+            if calls["n"] == 1:
+                return first_coder
+            return fake_create(*args, **kwargs)
+
+        MockCoderCreate.side_effect = create_dispatch
+        MockInputOutput.return_value.get_input.return_value = None
+
+        with GitTemporaryDirectory():
+            main([], input=DummyInput(), output=DummyOutput())
+
+        self.assertIn("shutdown", call_order)
+        self.assertIn("create", call_order)
+        self.assertLess(
+            call_order.index("shutdown"),
+            call_order.index("create"),
+            "outgoing coder's mcp_manager.shutdown() must run before the replacement"
+            " coder is created",
+        )
+        first_coder.mcp_manager.shutdown.assert_called_once()
+
+    @patch("aider.main.InputOutput")
+    @patch("aider.main.Coder.create")
+    def test_switch_coder_without_mcp_manager_does_not_error(
+        self, MockCoderCreate, MockInputOutput
+    ):
+        """Non-agent coders (no mcp_manager attribute at all) must not crash
+        the SwitchCoder handler -- getattr(coder, "mcp_manager", None) is
+        the guard for that."""
+        from aider.commands import SwitchCoder
+
+        first_coder = MagicMock(
+            name="first_coder", spec=["run", "ok_to_warm_cache", "show_announcements"]
+        )
+        first_coder.run.side_effect = SwitchCoder(edit_format="code")
+
+        second_coder = MagicMock(name="second_coder")
+        second_coder.run.return_value = None
+
+        MockCoderCreate.side_effect = [first_coder, second_coder]
+        MockInputOutput.return_value.get_input.return_value = None
+
+        with GitTemporaryDirectory():
+            # Should not raise AttributeError even though first_coder has no
+            # mcp_manager attribute.
+            main([], input=DummyInput(), output=DummyOutput())
