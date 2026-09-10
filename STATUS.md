@@ -43,9 +43,8 @@ merged:
   401s, not mocks.
 - Pinned `black` version upgraded (`23.3.0` -> `26.5.1`) and the
   repo-wide reformat applied as its own isolated PR; the old
-  Python-3.11-pre-commit-venv workaround is no longer needed for
-  compatibility (CONTRIBUTING.md's note on it can be pruned in a
-  follow-up doc pass).
+  Python-3.11-pre-commit-venv workaround note has been pruned from
+  CONTRIBUTING.md (no longer needed since the version bump).
 - `requirements/common-constraints.txt`'s scipy/numpy version-branch
   conflict (see former issue #18) fixed -- `scripts/pip-compile.sh`
   now compiles with `--universal --python-version 3.10`, resolving the
