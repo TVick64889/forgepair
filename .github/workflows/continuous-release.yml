@@ -32,7 +32,7 @@ on:
       - 'CHANGES.md'
 
 env:
-  DRY_RUN: "true"
+  DRY_RUN: "false"
 
 jobs:
   compute-next-version:
