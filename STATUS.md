@@ -90,6 +90,29 @@ rediscovered.
   are real and enforced, but every merge to date has been the repo
   owner clicking merge directly, not a queue processing an approved,
   green PR automatically.
+  INVESTIGATED 2026-09-09, still not configured -- real platform
+  blocker, not a config mistake. Attempted to migrate `main` from
+  classic branch protection to a repository ruleset (needed for
+  GitHub's native `merge_queue` rule type) preserving every existing
+  protection (1 required approving review, all 8 required status
+  checks, no force-push/deletion, no bypass actors -- matching current
+  `enforce_admins: true`). The API rejects any ruleset containing a
+  `merge_queue` rule with `422 Validation Failed` regardless of
+  payload shape (confirmed by retrying with a minimal ruleset
+  containing only the merge_queue rule). Root cause: confirmed via
+  `gh api repos/TVick64889/forgepair --jq '.owner.type'` that this
+  repo is owned by a personal user account (`User`), and GitHub's
+  native merge queue is only available for organization-owned
+  repositories -- not a mistake in the ruleset JSON. Nothing was
+  changed on GitHub as a result of this attempt (ruleset creation
+  failed before any write landed; `gh api
+  repos/TVick64889/forgepair/rulesets` still returns `[]`, existing
+  classic branch protection untouched).
+  Options going forward (not yet decided): (1) transfer the repo to a
+  new or existing GitHub organization, then set up the native merge
+  queue there; (2) use a bot-based queue (e.g. Mergify, which works on
+  personal-account repos) instead of GitHub's native feature; (3)
+  leave this gap open and keep merging directly, same as today.
 - **No second contributor has ever used the tiered-merge process.**
   Confirmed via the repo's collaborator list (one member). The tiered
   categories are documented in CONTRIBUTING.md but have never actually
