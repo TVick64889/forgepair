@@ -335,6 +335,60 @@ REPAIRED
 
 ---
 
+## Post-v1 -- Governance goes fully live: org transfer, merge queue, first real release (2026-09-10)
+
+NEW
+- Repo transferred from the personal `TVick64889` GitHub account to
+  the `forgepair` organization, specifically to unlock GitHub's native
+  merge queue -- confirmed via direct API testing that merge queues
+  are only available on organization-owned repos.
+- `main` migrated from classic branch protection to a repository
+  ruleset (`main-protection-with-merge-queue`) with a real
+  `merge_queue` rule. Verified end-to-end, not just configured: PR #40
+  went green, entered the queue, and merged automatically without
+  anyone clicking merge.
+- Continuous release switched from dry-run to live: PyPI publishing
+  moved to Trusted Publishing (OIDC) via `release.yml` -- no
+  long-lived `PYPI_API_TOKEN` stored in the repo. `forgepair` 1.0.0
+  published successfully, ForgePair's first real PyPI release.
+- README.md and the homepage now have a "What's different from aider"
+  section -- a skim-friendly summary of the governance and feature
+  differences, since the existing fork-disclosure banner said a fork
+  existed but never said what actually changed.
+- Repo topics, description, and a social-preview image added for
+  discoverability; wiki disabled (unused).
+
+REPAIRED
+- Every merge from PR #37 through #44 (6 merges) silently failed to
+  publish a new release: `github-actions[bot]` got a 403 pushing the
+  version tag, because the `forgepair` org has Actions default
+  workflow permissions locked to read-only -- not fixable at the repo
+  level, and the org's own settings toggle for it is greyed out even
+  for a genuine, 2FA-verified org owner (likely a new/unverified-org
+  restriction GitHub applies automatically). Real impact: every fix
+  merged during this window (scipy/numpy constraints, retired Haiku
+  model, a full foundational-docs accuracy pass) sat unshipped on PyPI
+  for roughly 7 hours -- the exact "commits exist, no release" failure
+  mode this governance model exists to prevent. Fixed by having
+  `continuous-release.yml`'s checkout step authenticate with a
+  fine-grained, repo-scoped PAT (`RELEASE_PAT`, Contents: Read and
+  write) instead of the org-restricted default token. Verified
+  end-to-end: the fix's own merge tagged `v1.0.1` and published it to
+  PyPI cleanly, with no OIDC identity mismatch from the org transfer.
+  `RELEASE_PAT` expires ~2026-10-10 -- revisit then to see if the org
+  restriction has lifted and the workaround can be dropped.
+- A full accuracy pass across STATUS.md, BUILD_PLAN.md, CONTRIBUTING.md,
+  and code (`aider/urls.py`, `aider/versioncheck.py`, `scripts/issues.py`,
+  test fixtures, the homepage) found and fixed a batch of references
+  left over from before the org transfer -- stale clone URLs, a crash-
+  reporter issue-filing URL still pointing at the personal account, two
+  more homepage nav links pointing at `Aider-AI/aider`, and several
+  STATUS.md claims that had drifted out of sync with their own "Known
+  gaps" tracking (dry-run/merge-queue status described as unconfirmed
+  after the same file had already marked them fixed).
+
+---
+
 ## Template for future entries
 
 ## Phase N -- <name> (date)

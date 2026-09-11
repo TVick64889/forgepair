@@ -23,11 +23,14 @@ merged:
   direct push (rejected) and running a real PR through the full flow to
   merge. A live GitHub-native merge queue is configured and verified
   end-to-end (org-owned repo, `main-protection-with-merge-queue`
-  ruleset -- PR #40 actually merged through it automatically). Tiered
-  contributor categories are documented in CONTRIBUTING.md. See
-  "Known gaps" below for what's NOT yet true about this (no second
-  contributor has ever used the tiered process, and continuous release
-  was broken by the org transfer -- see below).
+  ruleset -- PR #40 actually merged through it automatically), and
+  continuous release is live and verified: `forgepair` 1.0.1 published
+  successfully to PyPI via Trusted Publishing (OIDC) after a real fix
+  for an org-level Actions restriction that had silently broken it for
+  6 merges (see "Known gaps" for the detail and the recheck date on the
+  workaround). Tiered contributor categories are documented in
+  CONTRIBUTING.md. See "Known gaps" below for what's NOT yet true about
+  this (no second contributor has ever used the tiered process).
 - Issue/request triage redesign -- verified live against this repo.
 - Model-metadata fragility fixes (OpenRouter scraping replaced with
   the real API, hardcoded model lists auto-refreshed).
@@ -115,34 +118,37 @@ rediscovered.
   governance model (it doesn't bottleneck on one person) has evidence
   for the CI-gate half, but not the "someone else actually merges
   something" half.
-- **Continuous release is broken by the org transfer -- confirmed
-  2026-09-10, actively being fixed.** `DRY_RUN` was correctly flipped
-  to `"false"` and the v1.0.0 release published successfully -- but
-  that publish happened BEFORE the repo transferred from the personal
-  `TVick64889` account to the `forgepair` org. Every merge since (PR
-  #37 onward, 6 merges including 3 from tonight's docs cleanup) has
-  silently failed to tag a new release: `github-actions[bot]` gets a
-  403 pushing the version tag, because the `forgepair` org has Actions
-  "default workflow permissions" locked to read-only, and this can't
-  be fixed at the repo level (the API returns "Write permissions for
-  workflows are disabled by the organization" on any attempt to
-  override it). The org's own Settings > Actions > General toggle for
-  this is greyed out even for a genuine org owner/admin (confirmed via
+- ~~Continuous release was broken by the org transfer.~~ -- FIXED and
+  VERIFIED 2026-09-10. `DRY_RUN` was correctly flipped to `"false"` and
+  the v1.0.0 release published successfully -- but that publish
+  happened BEFORE the repo transferred from the personal `TVick64889`
+  account to the `forgepair` org. Every merge from PR #37 through #44
+  (6 merges, including 3 from that night's docs cleanup) silently
+  failed to tag a new release: `github-actions[bot]` got a 403 pushing
+  the version tag, because the `forgepair` org has Actions "default
+  workflow permissions" locked to read-only, not fixable at the repo
+  level (the API returns "Write permissions for workflows are disabled
+  by the organization" on any attempt to override it). The org's own
+  Settings > Actions > General toggle for this is greyed out even for
+  a genuine org owner/admin with 2FA enabled (confirmed via
   `gh api orgs/forgepair/memberships/... --jq .role` -> `admin`) --
   most likely a new/unverified-organization restriction GitHub applies
-  automatically, not a misconfiguration on this repo's part.
-  Workaround in progress: `continuous-release.yml`'s checkout step now
-  authenticates with a fine-grained PAT (`RELEASE_PAT` repo secret,
-  Contents: Read and write, scoped only to this one repo) instead of
-  the org-restricted default token, so the tag-push step can
-  authenticate with that instead. Real functional impact while this
-  was broken: `forgepair` 1.0.0 on PyPI is stale -- every fix merged
-  to `main` since the org transfer (scipy/numpy constraints, retired
-  Haiku model, all of tonight's doc-accuracy fixes) has been sitting
-  unshipped, the exact "commits exist, no release" failure mode this
-  governance model was built to prevent. NOT YET VERIFIED END-TO-END:
-  confirm the next merge after this fix actually tags and publishes
-  successfully before treating this as closed.
+  automatically, not a misconfiguration on this repo's part; revisit
+  around 2026-10-10 to see if it's lifted. Fix (PR #45):
+  `continuous-release.yml`'s checkout step authenticates with a
+  fine-grained PAT (`RELEASE_PAT` repo secret, Contents: Read and
+  write, scoped only to this repo, expires ~2026-10-10) instead of the
+  org-restricted default token. Verified end-to-end, not just
+  configured: PR #45's own merge tagged `v1.0.1` successfully (first
+  successful tag-push since the org transfer) and `release.yml`
+  published it to PyPI via Trusted Publishing with no OIDC identity
+  issues (confirmed: `https://pypi.org/project/forgepair/1.0.1/`
+  returns 200, and PyPI's `releases` list includes `1.0.1`). Real
+  functional impact while broken: every fix merged since the org
+  transfer (scipy/numpy constraints, retired Haiku model, the
+  2026-09-10 docs-accuracy pass) sat unshipped on PyPI for ~7 hours --
+  the exact "commits exist, no release" failure mode this governance
+  model was built to prevent. All of it is now live in v1.0.1.
 
 Not a gap, but related and worth noting here: Docker Hub publishing is
 also not configured by default (no ForgePair-maintained Docker Hub
@@ -454,11 +460,14 @@ publish workflow already exists and just needs your own credentials:
 3. `.github/workflows/docker-release.yml` triggers on any `vX.Y.Z` tag
    push and builds+pushes both targets, multi-arch (amd64+arm64), to
    `${DOCKERHUB_USERNAME}/aider` and `${DOCKERHUB_USERNAME}/aider-full`.
-   Note: this repo's own `continuous-release.yml` is configured to
-   auto-tag `vX.Y.Z` on every merge to `main`, but it was actually
-   broken by the org transfer -- see "Continuous release is broken by
-   the org transfer" under Known gaps above for the current state
-   before relying on tag-triggered publishing firing automatically.
+   Note: this repo's own `continuous-release.yml` auto-tags `vX.Y.Z`
+   on every merge to `main` and is confirmed working (v1.0.1 published
+   successfully via this exact path on 2026-09-10) -- so on a real fork
+   with these secrets set, `docker-release.yml` will fire automatically
+   on the next merge with no extra tagging step needed. Note the tag
+   push relies on a fine-grained PAT workaround for an org-level Actions
+   restriction (see Known gaps above) -- forks not affected by that
+   restriction won't need the equivalent of `RELEASE_PAT`.
 4. Alternatively, trigger `docker-release.yml` manually any time via
    `workflow_dispatch` (the "Run workflow" button in the Actions tab)
    without needing a tag push at all.
